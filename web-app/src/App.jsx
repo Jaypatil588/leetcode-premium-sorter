@@ -97,6 +97,24 @@ function App() {
   const [selectedTopics, setSelectedTopics] = useState([]);
   const [selectedDifficulties, setSelectedDifficulties] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // LeetCode Integration
+  const [extensionInstalled, setExtensionInstalled] = useState(false);
+  const [lcUsername, setLcUsername] = useState('');
+  const [lcSession, setLcSession] = useState('');
+  const [lcCsrf, setLcCsrf] = useState('');
+  const [solvedMap, setSolvedMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('solvedMap')) || {};
+    } catch { return {}; }
+  });
+  const [lcSolvedMap, setLcSolvedMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('lcSolvedMap')) || {};
+    } catch { return {}; }
+  });
+  const [fetchingLC, setFetchingLC] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -104,6 +122,222 @@ function App() {
 
   // Sorting
   const [sortConfig, setSortConfig] = useState({ key: 'frequency', direction: 'desc' });
+
+  // Persist solved state
+  useEffect(() => {
+    localStorage.setItem('solvedMap', JSON.stringify(solvedMap));
+  }, [solvedMap]);
+
+  useEffect(() => {
+    localStorage.setItem('lcSolvedMap', JSON.stringify(lcSolvedMap));
+  }, [lcSolvedMap]);
+
+  // Detect extension on load
+  useEffect(() => {
+    const checkExtension = () => {
+      const isInstalled = typeof window.leetcodeAuth !== 'undefined';
+      console.log('Extension detection check:', {
+        isInstalled,
+        hasAPI: !!window.leetcodeAuth,
+        apiKeys: window.leetcodeAuth ? Object.keys(window.leetcodeAuth) : []
+      });
+      setExtensionInstalled(isInstalled);
+      return isInstalled;
+    };
+    
+    // Check immediately
+    const initialCheck = checkExtension();
+    console.log('Initial extension check:', initialCheck);
+    
+    // Also listen for extension ready event
+    const handleReady = () => {
+      console.log('Extension ready event received!');
+      checkExtension();
+    };
+    window.addEventListener('leetcode-auth-ready', handleReady);
+    
+    // Re-check when window regains focus (after user installs extension)
+    const handleFocus = () => {
+      console.log('Window focused, rechecking extension...');
+      setTimeout(() => checkExtension(), 500);
+    };
+    window.addEventListener('focus', handleFocus);
+    
+    // Also check periodically for 10 seconds after load (in case extension loads late)
+    let checkCount = 0;
+    const interval = setInterval(() => {
+      checkCount++;
+      if (checkExtension() || checkCount >= 20) {
+        clearInterval(interval);
+      }
+    }, 500);
+    
+    return () => {
+      window.removeEventListener('leetcode-auth-ready', handleReady);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Listen for auth success from extension
+  useEffect(() => {
+    const handleAuthSuccess = (event) => {
+      if (event.detail) {
+        setLcSession(event.detail.session);
+        setLcCsrf(event.detail.csrf);
+      }
+    };
+    window.addEventListener('leetcode-auth-success', handleAuthSuccess);
+    return () => window.removeEventListener('leetcode-auth-success', handleAuthSuccess);
+  }, []);
+
+  const toggleSolved = (title) => {
+    setSolvedMap(prev => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  // Extension-based LeetCode Login
+  const handleLeetCodeLogin = async () => {
+    if (!window.leetcodeAuth) {
+      alert('Extension not detected. Please install it first.');
+      return;
+    }
+
+    setFetchingLC(true);
+    try {
+      const { session, csrf } = await window.leetcodeAuth.login();
+      setLcSession(session);
+      setLcCsrf(csrf);
+      
+      // Auto-fetch submissions if username is set
+      if (lcUsername) {
+        await fetchLeetCodeSubmissions(session, csrf);
+      } else {
+        alert('Login successful! Please enter your LeetCode username and click "Sync Solved".');
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      alert('Login failed: ' + error.message);
+    } finally {
+      setFetchingLC(false);
+    }
+  };
+
+  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf) => {
+    if (!lcUsername) {
+      alert('Please enter your LeetCode username first.');
+      return;
+    }
+    
+    if (!sessionToken) {
+      alert('Please login first using the "Login with LeetCode" button.');
+      return;
+    }
+
+    setFetchingLC(true);
+    try {
+      let allSolved = [];
+      let skip = 0;
+      const limit = 50; // Fetch 50 at a time (safe limit)
+      let hasMore = true;
+      let totalFetched = 0;
+
+      // Query to fetch ALL solved questions for the authenticated user
+      const query = `
+        query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
+          problemsetQuestionList: questionList(
+            categorySlug: $categorySlug
+            limit: $limit
+            skip: $skip
+            filters: $filters
+          ) {
+            total: totalNum
+            questions: data {
+              title
+              status
+            }
+          }
+        }
+      `;
+
+      // Loop to fetch all pages
+      while (hasMore) {
+        const response = await fetch('/leetcode-api/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-lc-session': sessionToken,
+                'x-lc-csrf': csrfToken,
+                'x-csrftoken': csrfToken
+            },
+            body: JSON.stringify({
+                query,
+                variables: { 
+                  categorySlug: "", 
+                  limit: limit, 
+                  skip: skip, 
+                  filters: { status: "AC" } 
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.errors) {
+            throw new Error(data.errors[0].message);
+        }
+
+        const list = data.data.problemsetQuestionList;
+        const questions = list.questions;
+        const total = list.total;
+        
+        if (!questions || questions.length === 0) {
+            hasMore = false;
+        } else {
+            allSolved = [...allSolved, ...questions];
+            skip += limit;
+            totalFetched += questions.length;
+            
+            // Log progress
+            console.log(`Fetched ${totalFetched}/${total} solved questions...`);
+            
+            // Check if we are done
+            if (totalFetched >= total) {
+                hasMore = false;
+            }
+        }
+      }
+      
+      if (allSolved.length === 0) {
+          alert('No solved questions found! Make sure you are logged in to the correct account.');
+          return;
+      }
+      
+      const newLcMap = { ...lcSolvedMap };
+      let newCount = 0;
+      allSolved.forEach(q => {
+          if (!newLcMap[q.title]) {
+              newLcMap[q.title] = true;
+              newCount++;
+          }
+      });
+      setLcSolvedMap(newLcMap);
+      alert(`Synced! Found ${allSolved.length} total solved questions (${newCount} new added).`);
+
+    } catch (err) {
+      console.error("LeetCode Fetch Error:", err);
+      alert("Failed to sync. " + err.message);
+    } finally {
+      setFetchingLC(false);
+    }
+  };
+
+  const handleQuickSetup = () => {
+    setShowSetupModal(true);
+  };
 
   useEffect(() => {
     fetch('/data.json')
@@ -202,6 +436,12 @@ function App() {
       } else if (sortConfig.key === 'topics') {
         valA = a.topics.join(', ');
         valB = b.topics.join(', ');
+      } else if (sortConfig.key === 'solved') {
+        valA = solvedMap[a.title] ? 1 : 0;
+        valB = solvedMap[b.title] ? 1 : 0;
+      } else if (sortConfig.key === 'lcSolved') {
+        valA = lcSolvedMap[a.title] ? 1 : 0;
+        valB = lcSolvedMap[b.title] ? 1 : 0;
       } else {
         valA = a[sortConfig.key];
         valB = b[sortConfig.key];
@@ -264,7 +504,7 @@ function App() {
           </div>
       );
   };
-  
+
   return (
     <div className="container-fluid py-4">
       <h1 className="mb-4 text-center">LeetCode Premium Sorter</h1>
@@ -307,10 +547,239 @@ function App() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+        <div className="col-md-12">
+          {!extensionInstalled ? (
+            <div className="alert alert-primary shadow-sm border-0 mb-0">
+              <div className="d-flex align-items-center justify-content-between">
+                <div className="flex-grow-1">
+                  <h5 className="mb-1">🔐 One-Time Setup Required</h5>
+                  <p className="mb-0 small text-muted">Install our local extension for secure LeetCode login</p>
+                </div>
+                <div>
+                  <button onClick={handleQuickSetup} className="btn btn-lg btn-success me-2">
+                    Quick Setup ⚡
+                  </button>
+                  <button 
+                    onClick={() => window.location.reload()} 
+                    className="btn btn-outline-secondary"
+                    title="Refresh page to detect extension"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
+              <div className="form-text mt-2 text-muted">
+                Takes 10 seconds • No data leaves your computer • Open source
+                {' '}<span className="text-warning">• Did you install? Click Refresh ↗</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="form-label fw-bold">LeetCode Sync</label>
+              <div className="input-group">
+                <span className="input-group-text">@</span>
+                <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="LeetCode Username" 
+                    value={lcUsername}
+                    onChange={(e) => setLcUsername(e.target.value)}
+                />
+                <button 
+                    className="btn btn-success" 
+                    onClick={handleLeetCodeLogin}
+                    disabled={fetchingLC}
+                >
+                    {fetchingLC ? 'Logging in...' : '🔑 Login with LeetCode'}
+                </button>
+                <button 
+                    className="btn btn-primary" 
+                    onClick={() => fetchLeetCodeSubmissions()} 
+                    disabled={fetchingLC || !lcUsername || !lcSession}
+                >
+                    {fetchingLC ? 'Fetching...' : 'Sync Solved'}
+                </button>
+              </div>
+              <div className="form-text text-muted small d-flex justify-content-between">
+                <span>
+                  {lcSession ? (
+                    <span className="text-success">✓ Logged in</span>
+                  ) : (
+                    <span>Click "Login with LeetCode" for OAuth-like authentication</span>
+                  )}
+                </span>
+                {lcSession && (
+                  <button className="btn btn-link btn-sm p-0 text-decoration-none" onClick={async () => {
+                    if (window.leetcodeAuth) {
+                      await window.leetcodeAuth.logout();
+                    }
+                    setLcSession('');
+                    setLcCsrf('');
+                  }}>
+                    Logout
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
+      {showSetupModal && (
+        <div 
+          className="modal d-block" 
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowSetupModal(false)}
+        >
+          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            <div className="modal-content shadow-lg">
+              <div className="modal-header border-0">
+                <h5 className="modal-title">⚡ Quick Extension Setup</h5>
+                <button type="button" className="btn-close" onClick={() => setShowSetupModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="alert alert-warning mb-3">
+                  <small className="fw-bold">⚡ Use Unpacked Extension (Easiest):</small>
+                </div>
+                
+                <ol className="mb-3">
+                  <li className="mb-3">
+                    <span className="badge bg-success me-2">1</span>
+                    Open Chrome Extensions:
+                    <div className="input-group input-group-sm mt-2">
+                      <input 
+                        type="text" 
+                        className="form-control font-monospace bg-light" 
+                        value="chrome://extensions" 
+                        readOnly 
+                        onClick={(e) => e.target.select()}
+                      />
+                      <button 
+                        className="btn btn-outline-secondary btn-sm" 
+                        onClick={() => {
+                          navigator.clipboard.writeText('chrome://extensions');
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <small className="text-muted">Paste in address bar</small>
+                  </li>
+                  <li className="mb-3">
+                    <span className="badge bg-success me-2">2</span>
+                    Toggle <strong>"Developer mode"</strong> ON (top right)
+                  </li>
+                  <li className="mb-3">
+                    <span className="badge bg-success me-2">3</span>
+                    Click <strong>"Load unpacked"</strong> button
+                  </li>
+                  <li className="mb-3">
+                    <span className="badge bg-success me-2">4</span>
+                    Navigate to and select this folder:
+                    <div className="input-group input-group-sm mt-2">
+                      <input 
+                        type="text" 
+                        className="form-control font-monospace bg-light small" 
+                        value="/Users/senpai/Desktop/projects/leetcode premium sorter/web-app/extension" 
+                        readOnly 
+                        onClick={(e) => e.target.select()}
+                      />
+                      <button 
+                        className="btn btn-outline-secondary btn-sm" 
+                        onClick={() => {
+                          navigator.clipboard.writeText('/Users/senpai/Desktop/projects/leetcode premium sorter/web-app/extension');
+                        }}
+                      >
+                        Copy Path
+                      </button>
+                    </div>
+                    <small className="text-muted">Cmd+Shift+G in finder to paste path</small>
+                  </li>
+                </ol>
+                
+                <div className="alert alert-success mb-3">
+                  <small>✅ Come back here and <strong>refresh the page</strong> (Cmd+R)!</small>
+                </div>
+
+
+                <details className="mb-0">
+                  <summary className="text-danger small fw-bold" style={{cursor: 'pointer'}}>
+                    🔧 Extension installed but not detected?
+                  </summary>
+                  <div className="mt-2 small">
+                    <p className="fw-bold mb-2">Checklist:</p>
+                    <div className="form-check mb-2">
+                      <input className="form-check-input" type="checkbox" id="check1" />
+                      <label className="form-check-label" htmlFor="check1">
+                        Extension shows in <code>chrome://extensions</code> with toggle ON
+                      </label>
+                    </div>
+                    <div className="form-check mb-2">
+                      <input className="form-check-input" type="checkbox" id="check2" />
+                      <label className="form-check-label" htmlFor="check2">
+                        "Developer mode" is enabled
+                      </label>
+                    </div>
+                    <div className="form-check mb-2">
+                      <input className="form-check-input" type="checkbox" id="check3" />
+                      <label className="form-check-label" htmlFor="check3">
+                        I refreshed this page AFTER installing (Cmd+R or F5)
+                      </label>
+                    </div>
+                    <div className="form-check mb-3">
+                      <input className="form-check-input" type="checkbox" id="check4" />
+                      <label className="form-check-label" htmlFor="check4">
+                        No errors shown in extension (check service worker logs)
+                      </label>
+                    </div>
+                    
+                    <p className="fw-bold mb-2">Debug in Console (F12):</p>
+                    <div className="bg-dark text-light p-2 rounded font-monospace small mb-2">
+                      window.leetcodeAuth
+                    </div>
+                    <p className="mb-2">
+                      Should return an object. If <code>undefined</code>, content script isn't running.
+                    </p>
+
+                    <p className="fw-bold mb-2">Common Issues:</p>
+                    <ul className="mb-0">
+                      <li>Selected wrong folder (need the <code>extension</code> folder specifically)</li>
+                      <li>Extension disabled or has errors</li>
+                      <li>Didn't hard refresh (try Ctrl+Shift+R or Cmd+Shift+R)</li>
+                      <li>Using Firefox (extension is Chrome-only)</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
+              <div className="modal-footer border-0 d-flex justify-content-between">
+                <button 
+                  className="btn btn-info btn-sm" 
+                  onClick={() => {
+                    const hasExt = typeof window.leetcodeAuth !== 'undefined';
+                    alert(hasExt 
+                      ? '✅ Extension IS detected!\nAPI: ' + Object.keys(window.leetcodeAuth).join(', ')
+                      : '❌ Extension NOT detected\nwindow.leetcodeAuth is undefined\n\nMake sure:\n1. Extension is installed\n2. Extension is enabled\n3. You refreshed the page\n4. No console errors'
+                    );
+                  }}
+                >
+                  🧪 Test Detection
+                </button>
+                <div>
+                  <button className="btn btn-secondary" onClick={() => setShowSetupModal(false)}>
+                    Close
+                  </button>
+                  <button className="btn btn-primary ms-2" onClick={() => window.location.reload()}>
+                    I've Installed It - Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <div>
+      <div>
           <span className="badge bg-primary me-2">{processedQuestions.length} Questions</span>
           {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
              <button className="btn btn-sm btn-outline-danger" onClick={clearFilters}>Clear Filters</button>
@@ -361,11 +830,17 @@ function App() {
               <th style={{ cursor: 'pointer' }} onClick={() => handleSort('topics')}>
                 Topics {getSortIcon('topics')}
               </th>
+              <th className="text-center" style={{ cursor: 'pointer', width: '80px' }} onClick={() => handleSort('lcSolved')}>
+                LC {getSortIcon('lcSolved')}
+              </th>
+              <th className="text-center" style={{ cursor: 'pointer', width: '80px' }} onClick={() => handleSort('solved')}>
+                Done {getSortIcon('solved')}
+              </th>
             </tr>
           </thead>
           <tbody>
             {currentQuestions.map((q) => (
-              <tr key={q.title}>
+              <tr key={q.title} className={solvedMap[q.title] ? 'table-success' : ''}>
                 <td>
                   <a href={q.link} target="_blank" rel="noopener noreferrer" className="text-decoration-none fw-bold">
                     {q.title}
@@ -414,11 +889,27 @@ function App() {
                 <td>
                   <small className="text-muted">{q.topics.slice(0, 3).join(', ')}{q.topics.length > 3 ? '...' : ''}</small>
                 </td>
+                <td className="text-center">
+                    {lcSolvedMap[q.title] ? (
+                        <span className="text-success fw-bold">✓</span>
+                    ) : (
+                        <span className="text-muted opacity-25">•</span>
+                    )}
+                </td>
+                <td className="text-center">
+                    <input 
+                        type="checkbox" 
+                        className="form-check-input border-secondary" 
+                        style={{ cursor: 'pointer', width: '1.2em', height: '1.2em' }}
+                        checked={!!solvedMap[q.title]} 
+                        onChange={() => toggleSolved(q.title)}
+                    />
+                </td>
               </tr>
             ))}
             {currentQuestions.length === 0 && (
               <tr>
-                <td colSpan="7" className="text-center text-muted">
+                <td colSpan="9" className="text-center text-muted">
                   No questions found matching your criteria.
                 </td>
               </tr>
