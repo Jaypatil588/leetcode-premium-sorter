@@ -100,9 +100,9 @@ function App() {
   
   // LeetCode Integration
   const [extensionInstalled, setExtensionInstalled] = useState(false);
-  const [lcUsername, setLcUsername] = useState('');
-  const [lcSession, setLcSession] = useState('');
-  const [lcCsrf, setLcCsrf] = useState('');
+  const [lcUsername, setLcUsername] = useState(() => localStorage.getItem('lcUsername') || '');
+  const [lcSession, setLcSession] = useState(() => localStorage.getItem('lcSession') || '');
+  const [lcCsrf, setLcCsrf] = useState(() => localStorage.getItem('lcCsrf') || '');
   const [solvedMap, setSolvedMap] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('solvedMap')) || {};
@@ -123,7 +123,7 @@ function App() {
   // Sorting
   const [sortConfig, setSortConfig] = useState({ key: 'frequency', direction: 'desc' });
 
-  // Persist solved state
+  // Persist state
   useEffect(() => {
     localStorage.setItem('solvedMap', JSON.stringify(solvedMap));
   }, [solvedMap]);
@@ -131,6 +131,18 @@ function App() {
   useEffect(() => {
     localStorage.setItem('lcSolvedMap', JSON.stringify(lcSolvedMap));
   }, [lcSolvedMap]);
+
+  useEffect(() => {
+    localStorage.setItem('lcUsername', lcUsername);
+  }, [lcUsername]);
+
+  useEffect(() => {
+    localStorage.setItem('lcSession', lcSession);
+  }, [lcSession]);
+
+  useEffect(() => {
+    localStorage.setItem('lcCsrf', lcCsrf);
+  }, [lcCsrf]);
 
   // Detect extension on load
   useEffect(() => {
