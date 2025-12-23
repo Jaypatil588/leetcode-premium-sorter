@@ -219,7 +219,7 @@ tbody td {
 
 .badge-company {
   background-color: rgba(96, 165, 250, 0.18);
-  color: #e5f0ff;
+  color: #f9fafb;
   border-color: rgba(96, 165, 250, 0.5);
   font-size: 0.85rem;
   padding: 0.28rem 0.55rem;
@@ -227,7 +227,7 @@ tbody td {
 
 .badge-topic {
   background-color: rgba(192, 132, 252, 0.18);
-  color: #f7ecff;
+  color: #f9fafb;
   border-color: rgba(192, 132, 252, 0.5);
   font-size: 0.85rem;
   padding: 0.28rem 0.55rem;
@@ -324,6 +324,18 @@ tbody td {
 .btn-secondary:hover {
   background-color: #1c1c23;
   border-color: var(--active-color);
+}
+
+/* Inputs / dropdowns: dark backgrounds, white text */
+input,
+select,
+textarea,
+.form-control,
+.input-group-text,
+.dropdown-menu {
+  background-color: #050508 !important;
+  color: #f9fafb !important;
+  border-color: var(--border-color) !important;
 }
 
 .btn-ghost {

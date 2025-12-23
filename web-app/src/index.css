@@ -48,8 +48,14 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background-light);
-  color: var(--text-dark);
+  color: #f9fafb;
   overflow-x: hidden;
+}
+
+/* Global: all text is white by default */
+body,
+body * {
+  color: #f9fafb !important;
 }
 
 a {
