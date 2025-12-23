@@ -587,8 +587,27 @@ function App() {
   const totalSolvedLc = Object.keys(lcSolvedMap).length;
   const totalRevised = Object.keys(solvedMap).filter(k => solvedMap[k]).length;
   const totalQuestionsCount = questions.length || 1;
-  const solvedPercent = Math.round((totalSolvedLc / totalQuestionsCount) * 100);
-  const revisedPercent = Math.round((totalRevised / totalQuestionsCount) * 100);
+  const goal = 500;
+  const solvedPercent = Math.round((totalSolvedLc / goal) * 100);
+  const revisedPercent = Math.round((totalRevised / goal) * 100);
+
+  // Calculate company-specific stats
+  const companyStats = useMemo(() => {
+    if (selectedCompanies.length === 0) {
+      return { solved: 0, remaining: 0, total: 0 };
+    }
+    
+    // Get all questions for selected companies
+    const companyQuestions = questions.filter(q => 
+      q.companies.some(c => selectedCompanies.includes(c.name))
+    );
+    
+    const total = companyQuestions.length;
+    const solved = companyQuestions.filter(q => lcSolvedMap[q.title]).length;
+    const remaining = total - solved;
+    
+    return { solved, remaining, total };
+  }, [questions, selectedCompanies, lcSolvedMap]);
 
   const handleSort = (key) => {
     setSortConfigs(current => {
@@ -1018,17 +1037,17 @@ function App() {
           <div className="stat-card">
             <div className="stat-label">LC Solved</div>
             <div className="stat-value">{totalSolvedLc}</div>
-            <span className="text-muted small">{solvedPercent}% of {totalQuestionsCount}</span>
+            <span className="text-muted small">{solvedPercent}% of {goal}</span>
           </div>
           <div className="stat-card">
             <div className="stat-label">Revised</div>
             <div className="stat-value">{totalRevised}</div>
-            <span className="text-muted small">{revisedPercent}% of {totalQuestionsCount}</span>
+            <span className="text-muted small">{revisedPercent}% of {goal}</span>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Visible After Filters</div>
-            <div className="stat-value">{processedQuestions.length}</div>
-            <span className="text-muted small">of {totalQuestionsCount} total</span>
+            <div className="stat-label">Company Progress</div>
+            <div className="stat-value">{companyStats.solved} / {companyStats.remaining}</div>
+            <span className="text-muted small">{selectedCompanies.length > 0 ? `${companyStats.solved} solved, ${companyStats.remaining} remaining` : 'Select a company'}</span>
           </div>
         </div>
 
@@ -1036,20 +1055,9 @@ function App() {
           <div className="card-header" style={{ padding: '0.5rem 0.85rem' }}>
             <div className="d-flex justify-content-between align-items-center">
               <div>
-                <span className="badge bg-primary me-2" style={{ fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>
-                  {processedQuestions.length} Questions
-                </span>
-                {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
-                  <button className="btn btn-sm btn-outline-danger" onClick={clearFilters}>
-                    Reset
-                  </button>
-                )}
+
               </div>
-              {totalPages > 1 && (
-                <span className="text-muted small" style={{ fontSize: '0.8rem' }}>
-                  Page {currentPage} of {totalPages}
-                </span>
-              )}
+
             </div>
           </div>
 
@@ -1081,11 +1089,9 @@ function App() {
                     </th>
                     <th className={`text-center sortable sort-${getSortState('lcSolved')}`} style={{ width: '80px' }} onClick={() => handleSort('lcSolved')}>
                       <div>LC <span className="sort-icon">{getSortIcon('lcSolved')}</span></div>
-                      <small style={{ fontSize: '0.7rem', opacity: 0.7 }}>({Object.keys(lcSolvedMap).length})</small>
                     </th>
                     <th className={`text-center sortable sort-${getSortState('solved')}`} style={{ width: '80px' }} onClick={() => handleSort('solved')}>
                       <div>Revised <span className="sort-icon">{getSortIcon('solved')}</span></div>
-                      <small style={{ fontSize: '0.7rem', opacity: 0.7 }}>({Object.keys(solvedMap).filter(k => solvedMap[k]).length})</small>
                     </th>
                   </tr>
                 </thead>

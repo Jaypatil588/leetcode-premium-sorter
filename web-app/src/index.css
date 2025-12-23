@@ -3,11 +3,12 @@
   --background-light: #050508;
   --card-background: #13131b;
   --surface-muted: #1b1b24;
-  --text-dark: #e5e7eb;
+  --text-dark: #000000;
   --text-muted: #9ba0a5;
   --border-color: #26262c;
   --hover-overlay: #1d1d23;
   --active-color: #ef4444;
+  --bs-body-bg:var(--surface-muted)
 
   /* Badge / status colors */
   --badge-green: #10b981;

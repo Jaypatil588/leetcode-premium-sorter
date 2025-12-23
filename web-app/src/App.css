@@ -46,7 +46,7 @@
 
 /* Table Container */
 .table-container {
-  background: var(--card-background);
+  background: #050508;
   border-radius: 0 0 12px 12px;
   overflow: hidden;
   border-top: none;
@@ -88,6 +88,10 @@ thead th {
 /* Ensure table headers stay light even with Bootstrap defaults */
 .table thead th {
   color: #f9fafb !important;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
+  vertical-align: middle;
 }
 
 thead th.sortable {
@@ -101,11 +105,11 @@ thead th.sortable:hover {
 
 /* Sort state indicators */
 thead th.sortable.sort-asc {
-  background-color: rgba(239, 68, 68, 0.12) !important;
+  background-color: rgba(131, 255, 112, 0.686) !important;
 }
 
 thead th.sortable.sort-desc {
-  background-color: rgba(239, 68, 68, 0.2) !important;
+  background-color: rgba(253, 107, 107, 0.704) !important;
 }
 
 thead th.sortable.sort-neutral {
@@ -177,14 +181,14 @@ tbody td {
   padding: 0.65rem 0.85rem;
   vertical-align: middle;
   font-size: 0.9rem;
-  color: var(--text-dark);
+  color: white;
   contain: layout style;
-  background-color: transparent;
+  background-color: #1111c1;
 }
 
 /* Ensure body text stays light on dark table rows */
 .table tbody td {
-  color: var(--text-dark) !important;
+  color: white !important;
 }
 
 /* Badges */
@@ -200,33 +204,34 @@ tbody td {
 }
 
 .badge-easy {
-  background-color: rgba(16, 185, 129, 0.4);
+  background-color: rgba(16, 185, 129, 0.824);
   color: #f9fafb;
   border-color: rgba(16, 185, 129, 0.8);
 }
 
 .badge-medium {
-  background-color: rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 159, 11, 0.842);
   color: #f9fafb;
   border-color: rgba(245, 158, 11, 0.8);
 }
 
 .badge-hard {
-  background-color: rgba(239, 68, 68, 0.45);
+  background-color: rgba(239, 68, 68, 0.717);
   color: #f9fafb;
   border-color: rgba(239, 68, 68, 0.9);
 }
 
 .badge-company {
-  background-color: rgba(96, 165, 250, 0.18);
+  background-color: rgba(96, 165, 250, 0.869);
   color: #f9fafb;
-  border-color: rgba(96, 165, 250, 0.5);
+  border-color: rgba(255, 255, 255, 0.973);
   font-size: 0.85rem;
   padding: 0.28rem 0.55rem;
+  border-width: 1px;
 }
 
 .badge-topic {
-  background-color: rgba(192, 132, 252, 0.18);
+  background-color: rgba(192, 132, 252, 0.788);
   color: #f9fafb;
   border-color: rgba(192, 132, 252, 0.5);
   font-size: 0.85rem;
