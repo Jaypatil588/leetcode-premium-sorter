@@ -55,3 +55,4 @@
   window.dispatchEvent(new CustomEvent('leetcode-auth-ready'));
   console.log('✅ LeetCode Auth API injected successfully!');
 })();
+

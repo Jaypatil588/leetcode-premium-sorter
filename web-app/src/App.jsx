@@ -1,4 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Sidebar from './components/Sidebar';
+import ProgressBar from './components/ProgressBar';
+import './App.css';
+
+const SIDEBAR_STORAGE_KEY = 'sidebarCollapsed';
 
 const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,8 +33,8 @@ const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
   };
 
   return (
-    <div className="dropdown mb-3" ref={containerRef}>
-      <label className="form-label fw-bold">{label}</label>
+    <div className="dropdown" ref={containerRef}>
+      <label className="form-label fw-bold" style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{label}</label>
       <div className="w-100">
         <button 
           className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" 
@@ -84,19 +89,39 @@ const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
 };
 
 const MAJOR_COMPANIES = [
-  'Google', 'Amazon', 'Meta', 'Facebook', 'Microsoft', 'Apple', 'Netflix', 
-  'Uber', 'LinkedIn', 'Bloomberg', 'Adobe', 'TikTok', 'Salesforce', 'Oracle', 'Twitter', 'X'
+  'Microsoft', 'Apple', 'Google', 'Netflix', 'Meta', 'Uber', 'Amazon', 'TikTok', 'X'
 ];
 
 function App() {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const hasAutoSyncedRef = useRef(false);
+  
+  // Sidebar state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return saved !== null ? saved === 'true' : true; // Collapsed by default
+  });
 
-  // Filters
-  const [selectedCompanies, setSelectedCompanies] = useState([]);
-  const [selectedTopics, setSelectedTopics] = useState([]);
-  const [selectedDifficulties, setSelectedDifficulties] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  // Filters - Load from localStorage
+  const [selectedCompanies, setSelectedCompanies] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('selectedCompanies')) || [];
+    } catch { return []; }
+  });
+  const [selectedTopics, setSelectedTopics] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('selectedTopics')) || [];
+    } catch { return []; }
+  });
+  const [selectedDifficulties, setSelectedDifficulties] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('selectedDifficulties')) || [];
+    } catch { return []; }
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return localStorage.getItem('searchQuery') || '';
+  });
   
   // LeetCode Integration
   const [extensionInstalled, setExtensionInstalled] = useState(false);
@@ -116,12 +141,22 @@ function App() {
   const [fetchingLC, setFetchingLC] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
+  // Pagination - Load from localStorage
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      const saved = localStorage.getItem('currentPage');
+      return saved ? parseInt(saved, 10) : 1;
+    } catch { return 1; }
+  });
   const itemsPerPage = 50;
 
-  // Sorting
-  const [sortConfig, setSortConfig] = useState({ key: 'frequency', direction: 'desc' });
+  // Sorting - Array of sort configs for stacking - Load from localStorage
+  const [sortConfigs, setSortConfigs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sortConfigs');
+      return saved ? JSON.parse(saved) : [{ key: 'frequency', direction: 'desc' }];
+    } catch { return [{ key: 'frequency', direction: 'desc' }]; }
+  });
 
   // Persist state
   useEffect(() => {
@@ -143,6 +178,41 @@ function App() {
   useEffect(() => {
     localStorage.setItem('lcCsrf', lcCsrf);
   }, [lcCsrf]);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarCollapsed.toString());
+  }, [sidebarCollapsed]);
+
+  // Persist filters
+  useEffect(() => {
+    localStorage.setItem('selectedCompanies', JSON.stringify(selectedCompanies));
+  }, [selectedCompanies]);
+
+  useEffect(() => {
+    localStorage.setItem('selectedTopics', JSON.stringify(selectedTopics));
+  }, [selectedTopics]);
+
+  useEffect(() => {
+    localStorage.setItem('selectedDifficulties', JSON.stringify(selectedDifficulties));
+  }, [selectedDifficulties]);
+
+  useEffect(() => {
+    localStorage.setItem('searchQuery', searchQuery);
+  }, [searchQuery]);
+
+  // Persist pagination
+  useEffect(() => {
+    localStorage.setItem('currentPage', currentPage.toString());
+  }, [currentPage]);
+
+  // Persist sort configs
+  useEffect(() => {
+    localStorage.setItem('sortConfigs', JSON.stringify(sortConfigs));
+  }, [sortConfigs]);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => !prev);
+  };
 
   // Detect extension on load
   useEffect(() => {
@@ -203,6 +273,8 @@ function App() {
     return () => window.removeEventListener('leetcode-auth-success', handleAuthSuccess);
   }, []);
 
+  // Sync is now triggered when clicking on problem links (see title link onClick handler)
+
   const toggleSolved = (title) => {
     setSolvedMap(prev => ({ ...prev, [title]: !prev[title] }));
   };
@@ -222,7 +294,7 @@ function App() {
       
       // Auto-fetch submissions if username is set
       if (lcUsername) {
-        await fetchLeetCodeSubmissions(session, csrf);
+        await fetchLeetCodeSubmissions(session, csrf, false, lcUsername);
       } else {
         alert('Login successful! Please enter your LeetCode username and click "Sync Solved".');
       }
@@ -234,14 +306,15 @@ function App() {
     }
   };
 
-  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf) => {
-    if (!lcUsername) {
-      alert('Please enter your LeetCode username first.');
+  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf, silent = false, username = lcUsername) => {
+    const usernameToUse = username || lcUsername;
+    if (!usernameToUse) {
+      if (!silent) alert('Please enter your LeetCode username first.');
       return;
     }
     
     if (!sessionToken) {
-      alert('Please login first using the "Login with LeetCode" button.');
+      if (!silent) alert('Please login first using the "Login with LeetCode" button.');
       return;
     }
 
@@ -273,7 +346,7 @@ function App() {
 
       // Loop to fetch all pages
       while (hasMore) {
-        const response = await fetch('/leetcode-api/graphql', {
+        const response = await fetch('/api/leetcode', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -324,7 +397,7 @@ function App() {
       }
       
       if (allSolved.length === 0) {
-          alert('No solved questions found! Make sure you are logged in to the correct account.');
+          if (!silent) alert('No solved questions found! Make sure you are logged in to the correct account.');
           return;
       }
       
@@ -337,11 +410,17 @@ function App() {
           }
       });
       setLcSolvedMap(newLcMap);
-      alert(`Synced! Found ${allSolved.length} total solved questions (${newCount} new added).`);
+      if (!silent) {
+        alert(`Synced! Found ${allSolved.length} total solved questions (${newCount} new added).`);
+      } else {
+        console.log(`Auto-synced: Found ${allSolved.length} total solved questions (${newCount} new added).`);
+      }
 
     } catch (err) {
       console.error("LeetCode Fetch Error:", err);
-      alert("Failed to sync. " + err.message);
+      if (!silent) {
+        alert("Failed to sync. " + err.message);
+      }
     } finally {
       setFetchingLC(false);
     }
@@ -408,69 +487,96 @@ function App() {
       result = result.filter(q => q.title.toLowerCase().includes(lower));
     }
 
-    // Sort
+    // Sort - Apply all sort configs in order
+    const activeSortConfigs = sortConfigs.length > 0 ? sortConfigs : [{ key: 'frequency', direction: 'desc' }];
+    
     result.sort((a, b) => {
-      let valA, valB;
+      for (const sortConfig of activeSortConfigs) {
+        let valA, valB;
 
-      if (sortConfig.key === 'frequency') {
-        // Calculate max frequency for the question based on context
-        const getFreq = (q) => {
-          const relevantCompanies = selectedCompanies.length > 0 
-            ? q.companies.filter(c => selectedCompanies.includes(c.name))
-            : q.companies;
-          return Math.max(0, ...relevantCompanies.map(c => c.frequency));
-        };
-        valA = getFreq(a);
-        valB = getFreq(b);
-      } else if (sortConfig.key === 'difficulty') {
-        const diffMap = { 'EASY': 1, 'MEDIUM': 2, 'HARD': 3 };
-        valA = diffMap[a.difficulty.toUpperCase()] || 0;
-        valB = diffMap[b.difficulty.toUpperCase()] || 0;
-      } else if (sortConfig.key === 'acceptanceRate') {
-        valA = a.acceptanceRate;
-        valB = b.acceptanceRate;
-      } else if (sortConfig.key === 'majorCompanies') {
-        // Sort by max frequency of major companies
-        const getMajorFreq = (q) => {
-           const major = q.companies.filter(c => MAJOR_COMPANIES.includes(c.name));
-           return major.length > 0 ? Math.max(...major.map(c => c.frequency)) : -1;
-        };
-        valA = getMajorFreq(a);
-        valB = getMajorFreq(b);
-      } else if (sortConfig.key === 'otherCompanies') {
-        // Sort by max frequency of other companies
-        const getOtherFreq = (q) => {
-           const other = q.companies.filter(c => !MAJOR_COMPANIES.includes(c.name));
-           return other.length > 0 ? Math.max(...other.map(c => c.frequency)) : -1;
-        };
-        valA = getOtherFreq(a);
-        valB = getOtherFreq(b);
-      } else if (sortConfig.key === 'topics') {
-        valA = a.topics.join(', ');
-        valB = b.topics.join(', ');
-      } else if (sortConfig.key === 'solved') {
-        valA = solvedMap[a.title] ? 1 : 0;
-        valB = solvedMap[b.title] ? 1 : 0;
-      } else if (sortConfig.key === 'lcSolved') {
-        valA = lcSolvedMap[a.title] ? 1 : 0;
-        valB = lcSolvedMap[b.title] ? 1 : 0;
-      } else {
-        valA = a[sortConfig.key];
-        valB = b[sortConfig.key];
+        if (sortConfig.key === 'frequency') {
+          // Calculate max frequency for the question based on context
+          const getFreq = (q) => {
+            const relevantCompanies = selectedCompanies.length > 0 
+              ? q.companies.filter(c => selectedCompanies.includes(c.name))
+              : q.companies;
+            if (relevantCompanies.length === 0) return -1; // Use -1 for no match to sort to bottom
+            const frequencies = relevantCompanies.map(c => c.frequency || 0);
+            return Math.max(...frequencies);
+          };
+          valA = getFreq(a);
+          valB = getFreq(b);
+        } else if (sortConfig.key === 'difficulty') {
+          const diffMap = { 'EASY': 1, 'MEDIUM': 2, 'HARD': 3 };
+          valA = diffMap[a.difficulty.toUpperCase()] || 0;
+          valB = diffMap[b.difficulty.toUpperCase()] || 0;
+        } else if (sortConfig.key === 'acceptanceRate') {
+          valA = a.acceptanceRate;
+          valB = b.acceptanceRate;
+        } else if (sortConfig.key === 'majorCompanies') {
+          // Sort by max frequency of major companies
+          const getMajorFreq = (q) => {
+             const major = q.companies.filter(c => MAJOR_COMPANIES.includes(c.name));
+             return major.length > 0 ? Math.max(...major.map(c => c.frequency)) : -1;
+          };
+          valA = getMajorFreq(a);
+          valB = getMajorFreq(b);
+        } else if (sortConfig.key === 'otherCompanies') {
+          // Sort by max frequency of other companies
+          const getOtherFreq = (q) => {
+             const other = q.companies.filter(c => !MAJOR_COMPANIES.includes(c.name));
+             return other.length > 0 ? Math.max(...other.map(c => c.frequency)) : -1;
+          };
+          valA = getOtherFreq(a);
+          valB = getOtherFreq(b);
+        } else if (sortConfig.key === 'topics') {
+          // Sort by first topic, then second, etc.
+          const topicsA = [...a.topics].sort();
+          const topicsB = [...b.topics].sort();
+          valA = topicsA.join(', ');
+          valB = topicsB.join(', ');
+        } else if (sortConfig.key === 'solved') {
+          valA = solvedMap[a.title] ? 1 : 0;
+          valB = solvedMap[b.title] ? 1 : 0;
+        } else if (sortConfig.key === 'lcSolved') {
+          valA = lcSolvedMap[a.title] ? 1 : 0;
+          valB = lcSolvedMap[b.title] ? 1 : 0;
+        } else {
+          valA = a[sortConfig.key];
+          valB = b[sortConfig.key];
+        }
+
+        // Compare values - handle null/undefined
+        if (valA == null) valA = sortConfig.key === 'frequency' ? -1 : '';
+        if (valB == null) valB = sortConfig.key === 'frequency' ? -1 : '';
+        
+        let comparison = 0;
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          comparison = valA.localeCompare(valB);
+        } else if (typeof valA === 'number' && typeof valB === 'number') {
+          comparison = valA - valB;
+        } else {
+          // Fallback comparison
+          if (valA < valB) comparison = -1;
+          else if (valA > valB) comparison = 1;
+        }
+        
+        // Apply sort direction
+        if (comparison !== 0) {
+          return sortConfig.direction === 'asc' ? comparison : -comparison;
+        }
+        // If equal, continue to next sort level
       }
-
-      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
 
     return result;
-  }, [questions, selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfig]);
+  }, [questions, selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs, solvedMap, lcSolvedMap]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfig]);
+  }, [selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs]);
 
   const totalPages = Math.ceil(processedQuestions.length / itemsPerPage);
   const currentQuestions = processedQuestions.slice(
@@ -479,15 +585,48 @@ function App() {
   );
 
   const handleSort = (key) => {
-    setSortConfig(current => ({
-      key,
-      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
-    }));
+    setSortConfigs(current => {
+      const existingIndex = current.findIndex(s => s.key === key);
+      let newConfigs;
+      
+      if (existingIndex >= 0) {
+        // Column already in sort stack
+        const existing = current[existingIndex];
+        if (existing.direction === 'desc') {
+          // Toggle to asc
+          newConfigs = [...current];
+          newConfigs[existingIndex] = { ...existing, direction: 'asc' };
+        } else {
+          // Remove from stack (third click)
+          newConfigs = current.filter((_, i) => i !== existingIndex);
+          // Ensure at least one sort remains
+          if (newConfigs.length === 0) {
+            newConfigs = [{ key: 'frequency', direction: 'desc' }];
+          }
+        }
+      } else {
+        // Add new sort (first click on this column)
+        newConfigs = [...current, { key, direction: 'desc' }];
+      }
+      
+      console.log('Sort configs updated:', newConfigs);
+      return newConfigs;
+    });
   };
 
   const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return '↕';
-    return sortConfig.direction === 'asc' ? '↑' : '↓';
+    const sortConfig = sortConfigs.find(s => s.key === key);
+    if (!sortConfig) return '↕';
+    const index = sortConfigs.findIndex(s => s.key === key);
+    const icon = sortConfig.direction === 'asc' ? '↑' : '↓';
+    // Show number if not first sort
+    return index > 0 ? `${icon}${index + 1}` : icon;
+  };
+
+  const getSortState = (key) => {
+    const sortConfig = sortConfigs.find(s => s.key === key);
+    if (!sortConfig) return 'neutral';
+    return sortConfig.direction === 'asc' ? 'asc' : 'desc';
   };
 
   const clearFilters = () => {
@@ -505,137 +644,218 @@ function App() {
       const hasMore = limit && sorted.length > limit;
 
       return (
-          <div style={{ maxWidth: '300px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', maxWidth: '300px' }}>
               {toShow.map(c => (
-                  <span key={c.name} className="badge bg-light text-dark border me-2 mb-1 fw-normal text-start d-inline-block" style={{ fontSize: '0.8rem', padding: '0.35em 0.65em' }}>
-                      <span className="fw-bold">{c.name}</span>
-                      <span className="ms-1 text-secondary" style={{ borderLeft: '1px solid #ccc', paddingLeft: '6px' }}>{c.frequency.toFixed(0)}%</span>
+                  <span key={c.name} className="badge badge-company">
+                      <span className="fw-semibold">{c.name}</span>
+                      <span className="ms-1" style={{ borderLeft: '1px solid rgba(59, 130, 246, 0.3)', paddingLeft: '0.35rem', opacity: 0.8 }}>
+                        {c.frequency.toFixed(0)}%
+                      </span>
                   </span>
               ))}
-              {hasMore && <span className="badge bg-secondary text-white mb-1" style={{ fontSize: '0.75rem' }}>+{sorted.length - toShow.length} more</span>}
+              {hasMore && (
+                <span className="badge" style={{ backgroundColor: 'var(--text-muted)', color: 'white', fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>
+                  +{sorted.length - toShow.length}
+                </span>
+              )}
           </div>
       );
   };
 
   return (
-    <div className="container-fluid py-4">
-      <h1 className="mb-4 text-center">LeetCode Premium Sorter</h1>
+    <div className="app-container">
+      <Sidebar 
+        username={lcUsername}
+        totalQuestions={questions.length}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
+      />
       
-      <div className="row mb-4">
-        <div className="col-md-3">
-          <MultiSelect 
-            label="Companies" 
-            options={companyOptions} 
-            selected={selectedCompanies} 
-            onChange={setSelectedCompanies} 
-            placeholder="All Companies"
-          />
-        </div>
-        <div className="col-md-3">
-          <MultiSelect 
-            label="Topics" 
-            options={topicOptions} 
-            selected={selectedTopics} 
-            onChange={setSelectedTopics} 
-            placeholder="All Topics"
-          />
-        </div>
-        <div className="col-md-3">
-          <MultiSelect 
-            label="Difficulty" 
-            options={difficultyOptions} 
-            selected={selectedDifficulties} 
-            onChange={setSelectedDifficulties} 
-            placeholder="All Difficulties"
-          />
-        </div>
-        <div className="col-md-3">
-          <label className="form-label fw-bold">Search</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            placeholder="Search title..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <div className="col-md-12">
-          {!extensionInstalled ? (
-            <div className="alert alert-primary shadow-sm border-0 mb-0">
-              <div className="d-flex align-items-center justify-content-between">
-                <div className="flex-grow-1">
-                  <h5 className="mb-1">🔐 One-Time Setup Required</h5>
-                  <p className="mb-0 small text-muted">Install our local extension for secure LeetCode login</p>
+      <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <div className="card filters-section" style={{ marginBottom: '1rem' }}>
+          <div className="card-body" style={{ padding: '1rem' }}>
+            {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
+              <div className="d-flex justify-content-between align-items-start" style={{ marginBottom: '0.75rem' }}>
+                <div className="filter-pills flex-grow-1">
+                  {selectedCompanies.map(company => (
+                    <div key={company} className="filter-pill">
+                      <span>{company}</span>
+                      <button 
+                        className="filter-pill-remove" 
+                        onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== company))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {selectedTopics.map(topic => (
+                    <div key={topic} className="filter-pill">
+                      <span>{topic}</span>
+                      <button 
+                        className="filter-pill-remove" 
+                        onClick={() => setSelectedTopics(prev => prev.filter(t => t !== topic))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {selectedDifficulties.map(diff => (
+                    <div key={diff} className="filter-pill">
+                      <span>{diff}</span>
+                      <button 
+                        className="filter-pill-remove" 
+                        onClick={() => setSelectedDifficulties(prev => prev.filter(d => d !== diff))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {searchQuery && (
+                    <div className="filter-pill">
+                      <span>Search: "{searchQuery}"</span>
+                      <button 
+                        className="filter-pill-remove" 
+                        onClick={() => setSearchQuery('')}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <button onClick={handleQuickSetup} className="btn btn-lg btn-success me-2">
-                    Quick Setup ⚡
-                  </button>
-                  <button 
-                    onClick={() => window.location.reload()} 
-                    className="btn btn-outline-secondary"
-                    title="Refresh page to detect extension"
-                  >
-                    🔄 Refresh
-                  </button>
-                </div>
+                <button className="btn btn-ghost btn-sm ms-2 flex-shrink-0" onClick={clearFilters}>
+                  Clear All
+                </button>
               </div>
-              <div className="form-text mt-2 text-muted">
-                Takes 10 seconds • No data leaves your computer • Open source
-                {' '}<span className="text-warning">• Did you install? Click Refresh ↗</span>
+            )}
+            
+            <div className="row" style={{ marginBottom: '0.75rem' }}>
+              <div className="col-md-3 mb-2">
+                <MultiSelect 
+                  label="Companies" 
+                  options={companyOptions} 
+                  selected={selectedCompanies} 
+                  onChange={setSelectedCompanies} 
+                  placeholder="All Companies"
+                />
+              </div>
+              <div className="col-md-3 mb-2">
+                <MultiSelect 
+                  label="Topics" 
+                  options={topicOptions} 
+                  selected={selectedTopics} 
+                  onChange={setSelectedTopics} 
+                  placeholder="All Topics"
+                />
+              </div>
+              <div className="col-md-3 mb-2">
+                <MultiSelect 
+                  label="Difficulty" 
+                  options={difficultyOptions} 
+                  selected={selectedDifficulties} 
+                  onChange={setSelectedDifficulties} 
+                  placeholder="All Difficulties"
+                />
+              </div>
+              <div className="col-md-3 mb-2">
+                <label className="form-label fw-bold" style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Search</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Search title..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
             </div>
-          ) : (
-            <div>
-              <label className="form-label fw-bold">LeetCode Sync</label>
-              <div className="input-group">
-                <span className="input-group-text">@</span>
-                <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="LeetCode Username" 
-                    value={lcUsername}
-                    onChange={(e) => setLcUsername(e.target.value)}
-                />
-                <button 
-                    className="btn btn-success" 
-                    onClick={handleLeetCodeLogin}
-                    disabled={fetchingLC}
-                >
-                    {fetchingLC ? 'Logging in...' : '🔑 Login with LeetCode'}
-                </button>
-                <button 
-                    className="btn btn-primary" 
-                    onClick={() => fetchLeetCodeSubmissions()} 
-                    disabled={fetchingLC || !lcUsername || !lcSession}
-                >
-                    {fetchingLC ? 'Fetching...' : 'Sync Solved'}
-                </button>
-              </div>
-              <div className="form-text text-muted small d-flex justify-content-between">
-                <span>
-                  {lcSession ? (
-                    <span className="text-success">✓ Logged in</span>
-                  ) : (
-                    <span>Click "Login with LeetCode" for OAuth-like authentication</span>
-                  )}
-                </span>
-                {lcSession && (
-                  <button className="btn btn-link btn-sm p-0 text-decoration-none" onClick={async () => {
-                    if (window.leetcodeAuth) {
-                      await window.leetcodeAuth.logout();
-                    }
-                    setLcSession('');
-                    setLcCsrf('');
-                  }}>
-                    Logout
-                  </button>
+            
+            <div className="row">
+              <div className="col-12">
+                {!extensionInstalled ? (
+                  <div className="alert alert-info shadow-sm border-0 mb-0" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))', border: '1px solid rgba(99, 102, 241, 0.2) !important', padding: '0.75rem 1rem' }}>
+                    <div className="d-flex align-items-center justify-content-between">
+                      <div className="flex-grow-1">
+                        <strong style={{ color: 'var(--active-color)', fontSize: '0.95rem' }}>🔐 Setup Required</strong>
+                        <span className="ms-2 small" style={{ color: 'var(--text-muted)' }}>Install extension for LeetCode sync</span>
+                      </div>
+                      <div>
+                        <button onClick={handleQuickSetup} className="btn btn-primary btn-sm me-2">
+                          Quick Setup ⚡
+                        </button>
+                        <button 
+                          onClick={() => window.location.reload()} 
+                          className="btn btn-secondary btn-sm"
+                          title="Refresh page to detect extension"
+                        >
+                          🔄
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label fw-bold" style={{ color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>LeetCode Sync</label>
+                    <div className="input-group">
+                      <span className="input-group-text">@</span>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        placeholder="LeetCode Username" 
+                        value={lcUsername}
+                        onChange={(e) => setLcUsername(e.target.value)}
+                      />
+                      <button 
+                        className="btn btn-success" 
+                        onClick={handleLeetCodeLogin}
+                        disabled={fetchingLC}
+                      >
+                        {fetchingLC ? (
+                          <><span className="loading-spinner me-2"></span>Logging in...</>
+                        ) : (
+                          '🔑 Login'
+                        )}
+                      </button>
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={() => fetchLeetCodeSubmissions(lcSession, lcCsrf, false, lcUsername)} 
+                        disabled={fetchingLC || !lcUsername || !lcSession}
+                      >
+                        {fetchingLC ? (
+                          <><span className="loading-spinner me-2"></span>Syncing...</>
+                        ) : (
+                          'Sync'
+                        )}
+                      </button>
+                    </div>
+                    <div className="form-text small d-flex justify-content-between" style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      <span>
+                        {lcSession ? (
+                          <span style={{ color: 'var(--badge-green)' }}>✓ Logged in</span>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem' }}>Click "Login" for authentication</span>
+                        )}
+                      </span>
+                      {lcSession && (
+                        <button 
+                          className="btn btn-link btn-sm p-0 text-decoration-none" 
+                          style={{ color: 'var(--active-color)', fontSize: '0.8rem' }}
+                          onClick={async () => {
+                            if (window.leetcodeAuth) {
+                              await window.leetcodeAuth.logout();
+                            }
+                            setLcSession('');
+                            setLcCsrf('');
+                          }}
+                        >
+                          Logout
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
       {showSetupModal && (
         <div 
@@ -790,165 +1010,232 @@ function App() {
         </div>
       )}
 
-      <div className="d-flex justify-content-between align-items-center mb-3">
-      <div>
-          <span className="badge bg-primary me-2">{processedQuestions.length} Questions</span>
-          {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
-             <button className="btn btn-sm btn-outline-danger" onClick={clearFilters}>Clear Filters</button>
+        <div className="card" style={{ marginBottom: '0' }}>
+          <div className="card-header" style={{ padding: '0.75rem 1rem' }}>
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <span className="badge bg-primary me-2" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                  {processedQuestions.length} Questions
+                </span>
+                {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
+                  <button className="btn btn-sm btn-outline-danger" onClick={clearFilters}>
+                    Reset
+                  </button>
+                )}
+              </div>
+              
+              {totalPages > 1 && (
+                <div className="pagination mb-0">
+                  <button 
+                    className="btn btn-sm btn-outline-secondary me-2" 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <span className="align-self-center mx-2" style={{ fontSize: '1rem' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button 
+                    className="btn btn-sm btn-outline-secondary ms-2" 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="table-container">
+            <div className="table-responsive">
+              <table className="table mb-0">
+                <thead>
+                  <tr>
+                    <th className={`sortable sort-${getSortState('title')}`} onClick={() => handleSort('title')}>
+                      Title <span className="sort-icon">{getSortIcon('title')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('difficulty')}`} style={{ width: '100px' }} onClick={() => handleSort('difficulty')}>
+                      Difficulty <span className="sort-icon">{getSortIcon('difficulty')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('acceptanceRate')}`} style={{ width: '120px' }} onClick={() => handleSort('acceptanceRate')}>
+                      Acceptance <span className="sort-icon">{getSortIcon('acceptanceRate')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('majorCompanies')}`} onClick={() => handleSort('majorCompanies')}>
+                      Major Companies <span className="sort-icon">{getSortIcon('majorCompanies')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('otherCompanies')}`} onClick={() => handleSort('otherCompanies')}>
+                      Other Companies <span className="sort-icon">{getSortIcon('otherCompanies')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('frequency')}`} style={{ width: '180px' }} onClick={() => handleSort('frequency')}>
+                      Frequency <span className="sort-icon">{getSortIcon('frequency')}</span>
+                    </th>
+                    <th className={`sortable sort-${getSortState('topics')}`} onClick={() => handleSort('topics')}>
+                      Topics <span className="sort-icon">{getSortIcon('topics')}</span>
+                    </th>
+                    <th className={`text-center sortable sort-${getSortState('lcSolved')}`} style={{ width: '80px' }} onClick={() => handleSort('lcSolved')}>
+                      <div>LC <span className="sort-icon">{getSortIcon('lcSolved')}</span></div>
+                      <small style={{ fontSize: '0.7rem', opacity: 0.7 }}>({Object.keys(lcSolvedMap).length})</small>
+                    </th>
+                    <th className={`text-center sortable sort-${getSortState('solved')}`} style={{ width: '80px' }} onClick={() => handleSort('solved')}>
+                      <div>Revised <span className="sort-icon">{getSortIcon('solved')}</span></div>
+                      <small style={{ fontSize: '0.7rem', opacity: 0.7 }}>({Object.keys(solvedMap).filter(k => solvedMap[k]).length})</small>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentQuestions.map((q) => (
+                    <tr 
+                      key={q.title} 
+                      className={solvedMap[q.title] ? 'solved-row' : ''}
+                      onClick={(e) => {
+                        // Don't toggle if clicking on the title link or checkbox
+                        if (e.target.tagName === 'A' || e.target.type === 'checkbox') {
+                          return;
+                        }
+                        toggleSolved(q.title);
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td>
+                        <a 
+                          href={q.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-decoration-none fw-semibold" 
+                          style={{ color: 'var(--text-dark)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Trigger sync when clicking on problem link
+                            if (lcUsername && lcSession) {
+                              // Fire sync in background, don't wait for it
+                              fetchLeetCodeSubmissions(lcSession, lcCsrf, true, lcUsername).catch(err => {
+                                console.error('Background sync failed:', err);
+                              });
+                            }
+                          }}
+                        >
+                          {q.title}
+                        </a>
+                      </td>
+                      <td>
+                        <span className={`badge ${
+                          q.difficulty.toUpperCase() === 'EASY' ? 'badge-easy' : 
+                          q.difficulty.toUpperCase() === 'MEDIUM' ? 'badge-medium' : 'badge-hard'
+                        }`}>
+                          {q.difficulty}
+                        </span>
+                      </td>
+                      <td>{(q.acceptanceRate * 100).toFixed(1)}%</td>
+                      <td>
+                        {(() => {
+                          const relevantCompanies = selectedCompanies.length > 0
+                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
+                            : q.companies;
+                          
+                          const major = relevantCompanies.filter(c => MAJOR_COMPANIES.includes(c.name));
+                          return renderCompanyBadges(major);
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const relevantCompanies = selectedCompanies.length > 0
+                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
+                            : q.companies;
+                          
+                          const others = relevantCompanies.filter(c => !MAJOR_COMPANIES.includes(c.name));
+                          // If filter applied, show all. Else show top 3.
+                          const limit = selectedCompanies.length > 0 ? null : 3;
+                          return renderCompanyBadges(others, limit);
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const relevantCompanies = selectedCompanies.length > 0 
+                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
+                            : q.companies;
+                          const maxFreq = Math.max(0, ...relevantCompanies.map(c => c.frequency));
+                          return <ProgressBar value={maxFreq} max={100} height="10px" />;
+                        })()}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          {q.topics.slice(0, 3).map(topic => (
+                            <span key={topic} className="badge badge-topic">
+                              {topic}
+                            </span>
+                          ))}
+                          {q.topics.length > 3 && (
+                            <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>
+                              +{q.topics.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        {lcSolvedMap[q.title] ? (
+                          <span className="check-icon">✓</span>
+                        ) : (
+                          <span style={{ color: 'var(--border-color)' }}>•</span>
+                        )}
+                      </td>
+                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          className="form-check-input revised-checkbox" 
+                          style={{ 
+                            cursor: 'pointer', 
+                            width: '1.5rem', 
+                            height: '1.5rem',
+                            border: '2px solid var(--border-color)',
+                            borderRadius: '4px',
+                            accentColor: 'var(--badge-green)'
+                          }}
+                          checked={!!solvedMap[q.title]} 
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleSolved(q.title);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  {currentQuestions.length === 0 && (
+                    <tr>
+                      <td colSpan="9" className="text-center" style={{ padding: '3rem', color: 'var(--text-muted)' }}>
+                        No questions found matching your criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="d-flex justify-content-center" style={{ padding: '1.5rem 0' }}>
+              <div className="pagination">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                <button disabled className="active">
+                  Page {currentPage} of {totalPages}
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           )}
         </div>
-        
-        {totalPages > 1 && (
-          <nav>
-            <ul className="pagination mb-0">
-              <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
-              </li>
-              <li className="page-item disabled">
-                <span className="page-link">
-                  Page {currentPage} of {totalPages}
-                </span>
-              </li>
-              <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next</button>
-              </li>
-            </ul>
-          </nav>
-        )}
-      </div>
-
-      <div className="table-responsive">
-        <table className="table table-hover table-bordered table-striped">
-          <thead className="table-dark sticky-top">
-            <tr>
-              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('title')}>
-                Title {getSortIcon('title')}
-              </th>
-              <th style={{ cursor: 'pointer', width: '100px' }} onClick={() => handleSort('difficulty')}>
-                Diff {getSortIcon('difficulty')}
-              </th>
-              <th style={{ cursor: 'pointer', width: '120px' }} onClick={() => handleSort('acceptanceRate')}>
-                Acc. Rate {getSortIcon('acceptanceRate')}
-              </th>
-              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('majorCompanies')}>
-                Major Companies {getSortIcon('majorCompanies')}
-              </th>
-              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('otherCompanies')}>
-                Other Companies {getSortIcon('otherCompanies')}
-              </th>
-              <th style={{ cursor: 'pointer', width: '120px' }} onClick={() => handleSort('frequency')}>
-                Max Freq {getSortIcon('frequency')}
-              </th>
-              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('topics')}>
-                Topics {getSortIcon('topics')}
-              </th>
-              <th className="text-center" style={{ cursor: 'pointer', width: '80px' }} onClick={() => handleSort('lcSolved')}>
-                LC {getSortIcon('lcSolved')}
-              </th>
-              <th className="text-center" style={{ cursor: 'pointer', width: '80px' }} onClick={() => handleSort('solved')}>
-                Done {getSortIcon('solved')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentQuestions.map((q) => (
-              <tr key={q.title} className={solvedMap[q.title] ? 'table-success' : ''}>
-                <td>
-                  <a href={q.link} target="_blank" rel="noopener noreferrer" className="text-decoration-none fw-bold">
-                    {q.title}
-                  </a>
-                </td>
-                <td>
-                  <span className={`badge ${
-                    q.difficulty.toUpperCase() === 'EASY' ? 'bg-success' : 
-                    q.difficulty.toUpperCase() === 'MEDIUM' ? 'bg-warning text-dark' : 'bg-danger'
-                  }`}>
-                    {q.difficulty}
-                  </span>
-                </td>
-                <td>{(q.acceptanceRate * 100).toFixed(1)}%</td>
-                <td>
-                  {(() => {
-                    const relevantCompanies = selectedCompanies.length > 0
-                      ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                      : q.companies;
-                    
-                    const major = relevantCompanies.filter(c => MAJOR_COMPANIES.includes(c.name));
-                    return renderCompanyBadges(major);
-                  })()}
-                </td>
-                <td>
-                  {(() => {
-                    const relevantCompanies = selectedCompanies.length > 0
-                      ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                      : q.companies;
-                    
-                    const others = relevantCompanies.filter(c => !MAJOR_COMPANIES.includes(c.name));
-                    // If filter applied, show all. Else show top 3.
-                    const limit = selectedCompanies.length > 0 ? null : 3;
-                    return renderCompanyBadges(others, limit);
-                  })()}
-                </td>
-                <td>
-                  {(() => {
-                    const relevantCompanies = selectedCompanies.length > 0 
-                      ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                      : q.companies;
-                    const maxFreq = Math.max(0, ...relevantCompanies.map(c => c.frequency));
-                    return maxFreq.toFixed(1);
-                  })()}
-                </td>
-                <td>
-                  <small className="text-muted">{q.topics.slice(0, 3).join(', ')}{q.topics.length > 3 ? '...' : ''}</small>
-                </td>
-                <td className="text-center">
-                    {lcSolvedMap[q.title] ? (
-                        <span className="text-success fw-bold">✓</span>
-                    ) : (
-                        <span className="text-muted opacity-25">•</span>
-                    )}
-                </td>
-                <td className="text-center">
-                    <input 
-                        type="checkbox" 
-                        className="form-check-input border-secondary" 
-                        style={{ cursor: 'pointer', width: '1.2em', height: '1.2em' }}
-                        checked={!!solvedMap[q.title]} 
-                        onChange={() => toggleSolved(q.title)}
-                    />
-                </td>
-              </tr>
-            ))}
-            {currentQuestions.length === 0 && (
-              <tr>
-                <td colSpan="9" className="text-center text-muted">
-                  No questions found matching your criteria.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="d-flex justify-content-center mt-3">
-           <nav>
-            <ul className="pagination">
-              <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
-              </li>
-              <li className="page-item disabled">
-                <span className="page-link">
-                  Page {currentPage} of {totalPages}
-                </span>
-              </li>
-              <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next</button>
-              </li>
-            </ul>
-          </nav>
-        </div>
-      )}
+      </main>
     </div>
   );
 }
