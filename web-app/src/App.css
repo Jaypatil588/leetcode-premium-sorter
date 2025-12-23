@@ -182,6 +182,11 @@ tbody td {
   background-color: transparent;
 }
 
+/* Ensure body text stays light on dark table rows */
+.table tbody td {
+  color: var(--text-dark) !important;
+}
+
 /* Badges */
 .badge {
   display: inline-block;
