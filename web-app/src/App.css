@@ -9,7 +9,7 @@
 .main-content {
   flex: 1;
   margin-left: 260px;
-  padding: 1rem 2rem;
+  padding: 1rem 1.5rem;
   transition: margin-left 0.15s ease;
 }
 
@@ -21,9 +21,9 @@
 .card {
   background: var(--card-background);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.9rem;
   border: 1px solid var(--border-color);
   contain: layout style;
 }
@@ -68,13 +68,13 @@ thead {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  background: linear-gradient(to bottom, #141418, #101015);
   will-change: transform;
 }
 
 thead th {
   padding: 1rem;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -89,16 +89,16 @@ thead th.sortable {
 }
 
 thead th.sortable:hover {
-  background-color: var(--hover-overlay);
+  background-color: #18181d;
 }
 
 /* Sort state indicators */
 thead th.sortable.sort-asc {
-  background-color: rgba(16, 185, 129, 0.15) !important;
+  background-color: rgba(16, 185, 129, 0.18) !important;
 }
 
 thead th.sortable.sort-desc {
-  background-color: rgba(239, 68, 68, 0.15) !important;
+  background-color: rgba(239, 68, 68, 0.2) !important;
 }
 
 thead th.sortable.sort-neutral {
@@ -112,31 +112,31 @@ tbody tr {
 }
 
 tbody tr:nth-child(even) {
-  background-color: #ffffff;
+  background-color: #111117;
 }
 
 tbody tr:nth-child(odd) {
-  background-color: #f9fafb;
+  background-color: #0f0f14;
 }
 
 tbody tr:hover {
-  background-color: var(--hover-overlay);
+  background-color: #191921;
 }
 
 tbody tr.solved-row {
-  background-color: #d1fae5 !important;
+  background-color: #12312a !important;
 }
 
 tbody tr.solved-row td {
-  background-color: #d1fae5 !important;
+  background-color: #12312a !important;
 }
 
 tbody tr.solved-row:hover {
-  background-color: #a7f3d0 !important;
+  background-color: #0f2a24 !important;
 }
 
 tbody tr.solved-row:hover td {
-  background-color: #a7f3d0 !important;
+  background-color: #0f2a24 !important;
 }
 
 /* Revised Checkbox Styling */
@@ -175,8 +175,8 @@ tbody td {
 /* Badges */
 .badge {
   display: inline-block;
-  padding: 0.35rem 0.75rem;
-  font-size: 1rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.9rem;
   font-weight: 500;
   border-radius: 6px;
   white-space: nowrap;
@@ -185,37 +185,37 @@ tbody td {
 }
 
 .badge-easy {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: var(--difficulty-easy);
-  border-color: rgba(16, 185, 129, 0.3);
+  background-color: rgba(16, 185, 129, 0.14);
+  color: var(--text-dark);
+  border-color: rgba(16, 185, 129, 0.4);
 }
 
 .badge-medium {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: var(--difficulty-medium);
-  border-color: rgba(245, 158, 11, 0.3);
+  background-color: rgba(245, 158, 11, 0.14);
+  color: var(--text-dark);
+  border-color: rgba(245, 158, 11, 0.4);
 }
 
 .badge-hard {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--difficulty-hard);
-  border-color: rgba(239, 68, 68, 0.3);
+  background-color: rgba(239, 68, 68, 0.16);
+  color: var(--text-dark);
+  border-color: rgba(239, 68, 68, 0.45);
 }
 
 .badge-company {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: var(--badge-blue);
-  border-color: rgba(59, 130, 246, 0.2);
-  font-size: 0.9rem;
-  padding: 0.3rem 0.6rem;
+  background-color: rgba(96, 165, 250, 0.12);
+  color: #e8f1ff;
+  border-color: rgba(96, 165, 250, 0.35);
+  font-size: 0.85rem;
+  padding: 0.28rem 0.55rem;
 }
 
 .badge-topic {
-  background-color: rgba(168, 85, 247, 0.1);
-  color: var(--badge-purple);
-  border-color: rgba(168, 85, 247, 0.2);
-  font-size: 0.9rem;
-  padding: 0.3rem 0.6rem;
+  background-color: rgba(192, 132, 252, 0.12);
+  color: #f0e8ff;
+  border-color: rgba(192, 132, 252, 0.35);
+  font-size: 0.85rem;
+  padding: 0.28rem 0.55rem;
 }
 
 /* Filter Pills */
@@ -230,17 +230,17 @@ tbody td {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: rgba(99, 102, 241, 0.1);
-  color: var(--active-color);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 20px;
-  font-size: 1rem;
+  padding: 0.45rem 0.9rem;
+  background-color: #1c1c23;
+  color: var(--text-dark);
+  border: 1px solid #26262c;
+  border-radius: 18px;
+  font-size: 0.95rem;
   font-weight: 500;
 }
 
 .filter-pill:hover {
-  background-color: rgba(99, 102, 241, 0.2);
+  background-color: #22222a;
 }
 
 .filter-pill-remove {
@@ -261,22 +261,22 @@ tbody td {
 
 /* Buttons */
 .btn-primary {
-  background: linear-gradient(135deg, var(--sidebar-gradient-start), var(--sidebar-gradient-end));
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 500;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.28);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.35);
 }
 
 .btn-secondary {
-  background-color: white;
+  background-color: transparent;
   color: var(--text-dark);
   border: 1px solid var(--border-color);
   padding: 0.75rem 1.5rem;
@@ -286,7 +286,7 @@ tbody td {
 }
 
 .btn-secondary:hover {
-  background-color: var(--background-light);
+  background-color: #1c1c23;
   border-color: var(--active-color);
 }
 
@@ -301,7 +301,7 @@ tbody td {
 
 .btn-ghost:hover {
   color: var(--text-dark);
-  background-color: var(--background-light);
+  background-color: #1c1c23;
 }
 
 .btn-sm {
@@ -365,20 +365,20 @@ tbody td {
 }
 
 .pagination button {
-  min-width: 40px;
-  height: 40px;
+  min-width: 42px;
+  height: 42px;
   padding: 0.5rem;
   border: 1px solid var(--border-color);
-  background-color: white;
+  background-color: #16161d;
   color: var(--text-dark);
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 500;
 }
 
 .pagination button:hover:not(:disabled) {
   border-color: var(--active-color);
   color: var(--active-color);
-  background-color: var(--hover-overlay);
+  background-color: #1f1f27;
 }
 
 .pagination button:disabled {

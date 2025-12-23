@@ -35,3 +35,4 @@ function ProgressBar({ value, max = 100, showLabel = true, height = '8px' }) {
 }
 
 export default ProgressBar;
+

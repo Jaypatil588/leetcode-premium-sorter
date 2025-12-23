@@ -1156,7 +1156,7 @@ function App() {
                             ? q.companies.filter(c => selectedCompanies.includes(c.name))
                             : q.companies;
                           const maxFreq = Math.max(0, ...relevantCompanies.map(c => c.frequency));
-                          return <ProgressBar value={maxFreq} max={100} height="10px" />;
+                          return <ProgressBar value={maxFreq} max={100} height="12px" />;
                         })()}
                       </td>
                       <td>

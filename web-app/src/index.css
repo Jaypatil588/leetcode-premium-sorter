@@ -1,29 +1,30 @@
 :root {
-  /* Color Scheme Variables */
-  --sidebar-gradient-start: #6366f1;
-  --sidebar-gradient-end: #8b5cf6;
-  --background-light: #f9fafb;
-  --card-background: #ffffff;
-  --text-dark: #111827;
-  --text-muted: #6b7280;
-  --border-color: #e5e7eb;
-  
-  /* Badge Colors */
+  /* Material dark palette with restrained red accent */
+  --background-light: #0b0b0d;
+  --card-background: #121215;
+  --surface-muted: #16161a;
+  --text-dark: #e5e7eb;
+  --text-muted: #9ba0a5;
+  --border-color: #26262c;
+  --hover-overlay: #1d1d23;
+  --active-color: #ef4444;
+
+  /* Badge / status colors */
   --badge-green: #10b981;
   --badge-yellow: #f59e0b;
-  --badge-purple: #a855f7;
-  --badge-blue: #3b82f6;
+  --badge-purple: #c084fc;
+  --badge-blue: #60a5fa;
   --badge-red: #ef4444;
-  
+
   /* Difficulty Colors */
   --difficulty-easy: #10b981;
   --difficulty-medium: #f59e0b;
   --difficulty-hard: #ef4444;
-  
-  /* Interactive States */
-  --hover-overlay: rgba(99, 102, 241, 0.05);
-  --active-color: #6366f1;
-  
+
+  /* Sidebar gradient */
+  --sidebar-gradient-start: #11111a;
+  --sidebar-gradient-end: #0d0d14;
+
   /* Typography */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
