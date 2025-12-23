@@ -6,9 +6,10 @@ function ProgressBar({ value, max = 100, showLabel = true, height = '8px' }) {
   
   // Determine color based on percentage
   const getColor = () => {
-    if (percentage >= 67) return '#ef4444'; // Red
-    if (percentage >= 34) return '#f59e0b'; // Yellow
-    return '#10b981'; // Green
+    // Use a calmer blue-green scale so this column doesn't dominate
+    if (percentage >= 67) return '#60a5fa'; // brighter blue
+    if (percentage >= 34) return '#38bdf8'; // mid blue
+    return '#22c55e'; // green for low/medium
   };
 
   const color = getColor();

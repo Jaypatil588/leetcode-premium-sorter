@@ -34,7 +34,7 @@ const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
 
   return (
     <div className="dropdown" ref={containerRef}>
-      <label className="form-label fw-bold" style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{label}</label>
+      <label className="form-label fw-bold" style={{ fontSize: '0.9rem', marginBottom: '0.15rem' }}>{label}</label>
       <div className="w-100">
         <button 
           className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" 
@@ -584,6 +584,12 @@ function App() {
     currentPage * itemsPerPage
   );
 
+  const totalSolvedLc = Object.keys(lcSolvedMap).length;
+  const totalRevised = Object.keys(solvedMap).filter(k => solvedMap[k]).length;
+  const totalQuestionsCount = questions.length || 1;
+  const solvedPercent = Math.round((totalSolvedLc / totalQuestionsCount) * 100);
+  const revisedPercent = Math.round((totalRevised / totalQuestionsCount) * 100);
+
   const handleSort = (key) => {
     setSortConfigs(current => {
       const existingIndex = current.findIndex(s => s.key === key);
@@ -617,10 +623,8 @@ function App() {
   const getSortIcon = (key) => {
     const sortConfig = sortConfigs.find(s => s.key === key);
     if (!sortConfig) return '↕';
-    const index = sortConfigs.findIndex(s => s.key === key);
     const icon = sortConfig.direction === 'asc' ? '↑' : '↓';
-    // Show number if not first sort
-    return index > 0 ? `${icon}${index + 1}` : icon;
+    return icon;
   };
 
   const getSortState = (key) => {
@@ -757,7 +761,7 @@ function App() {
                 />
               </div>
               <div className="col-md-3 mb-2">
-                <label className="form-label fw-bold" style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>Search</label>
+                <label className="form-label fw-bold" style={{ fontSize: '0.9rem', marginBottom: '0.15rem' }}>Search</label>
                 <input 
                   type="text" 
                   className="form-control" 
@@ -793,7 +797,7 @@ function App() {
                   </div>
                 ) : (
                   <div>
-                    <label className="form-label fw-bold" style={{ color: 'var(--text-dark)', fontSize: '1rem', marginBottom: '0.25rem' }}>LeetCode Sync</label>
+                    <label className="form-label fw-bold" style={{ color: 'var(--text-dark)', fontSize: '0.9rem', marginBottom: '0.15rem' }}>LeetCode Sync</label>
                     <div className="input-group">
                       <span className="input-group-text">@</span>
                       <input 
@@ -1010,11 +1014,29 @@ function App() {
         </div>
       )}
 
+        <div className="stats-bar">
+          <div className="stat-card">
+            <div className="stat-label">LC Solved</div>
+            <div className="stat-value">{totalSolvedLc}</div>
+            <span className="text-muted small">{solvedPercent}% of {totalQuestionsCount}</span>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Revised</div>
+            <div className="stat-value">{totalRevised}</div>
+            <span className="text-muted small">{revisedPercent}% of {totalQuestionsCount}</span>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Visible After Filters</div>
+            <div className="stat-value">{processedQuestions.length}</div>
+            <span className="text-muted small">of {totalQuestionsCount} total</span>
+          </div>
+        </div>
+
         <div className="card" style={{ marginBottom: '0' }}>
-          <div className="card-header" style={{ padding: '0.75rem 1rem' }}>
+          <div className="card-header" style={{ padding: '0.5rem 0.85rem' }}>
             <div className="d-flex justify-content-between align-items-center">
               <div>
-                <span className="badge bg-primary me-2" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                <span className="badge bg-primary me-2" style={{ fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>
                   {processedQuestions.length} Questions
                 </span>
                 {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
@@ -1023,27 +1045,10 @@ function App() {
                   </button>
                 )}
               </div>
-              
               {totalPages > 1 && (
-                <div className="pagination mb-0">
-                  <button 
-                    className="btn btn-sm btn-outline-secondary me-2" 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <span className="align-self-center mx-2" style={{ fontSize: '1rem' }}>
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button 
-                    className="btn btn-sm btn-outline-secondary ms-2" 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </button>
-                </div>
+                <span className="text-muted small" style={{ fontSize: '0.8rem' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
               )}
             </div>
           </div>
@@ -1098,12 +1103,12 @@ function App() {
                       }}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td>
+                      <td className="title-cell">
                         <a 
                           href={q.link} 
                           target="_blank" 
                           rel="noopener noreferrer" 
-                          className="text-decoration-none fw-semibold" 
+                          className="text-decoration-none fw-semibold title-link"
                           style={{ color: 'var(--text-dark)' }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1156,7 +1161,7 @@ function App() {
                             ? q.companies.filter(c => selectedCompanies.includes(c.name))
                             : q.companies;
                           const maxFreq = Math.max(0, ...relevantCompanies.map(c => c.frequency));
-                          return <ProgressBar value={maxFreq} max={100} height="12px" />;
+                          return <ProgressBar value={maxFreq} max={100} height="9px" />;
                         })()}
                       </td>
                       <td>

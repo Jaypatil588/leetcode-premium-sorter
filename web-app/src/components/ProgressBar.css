@@ -2,13 +2,13 @@
 .progress-bar-container {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-width: 120px;
+  gap: 0.5rem;
+  min-width: 110px;
 }
 
 .progress-bar-track {
   flex: 1;
-  background-color: #1f1f25;
+  background-color: #14141b;
   border-radius: 10px;
   overflow: hidden;
   position: relative;
@@ -23,11 +23,11 @@
 }
 
 .progress-bar-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   min-width: 44px;
   text-align: right;
-  color: #e5e7eb;
+  color: #9ca3af;
 }
 
 /* Hover Effect - Removed for performance */

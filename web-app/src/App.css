@@ -8,8 +8,8 @@
 /* Main Content Area */
 .main-content {
   flex: 1;
-  margin-left: 260px;
-  padding: 1rem 1.5rem;
+  margin-left: 220px;
+  padding: 0.75rem 1.25rem;
   transition: margin-left 0.15s ease;
 }
 
@@ -22,8 +22,8 @@
   background: var(--card-background);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  padding: 0.9rem 1rem;
-  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.5rem;
   border: 1px solid var(--border-color);
   contain: layout style;
 }
@@ -74,12 +74,12 @@ thead {
 }
 
 thead th {
-  padding: 1rem;
-  font-size: 0.95rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-dark);
+  color: #f9fafb;
   border-bottom: 2px solid var(--border-color);
   white-space: nowrap;
   background-color: transparent;
@@ -96,7 +96,7 @@ thead th.sortable:hover {
 
 /* Sort state indicators */
 thead th.sortable.sort-asc {
-  background-color: rgba(16, 185, 129, 0.18) !important;
+  background-color: rgba(239, 68, 68, 0.12) !important;
 }
 
 thead th.sortable.sort-desc {
@@ -127,19 +127,20 @@ tbody tr:hover {
 }
 
 tbody tr.solved-row {
-  background-color: #12312a !important;
+  background-color: rgba(16, 185, 129, 0.16) !important;
+  box-shadow: inset 3px 0 0 var(--badge-green);
 }
 
 tbody tr.solved-row td {
-  background-color: #12312a !important;
+  background-color: transparent !important;
 }
 
 tbody tr.solved-row:hover {
-  background-color: #0f2a24 !important;
+  background-color: rgba(16, 185, 129, 0.22) !important;
 }
 
 tbody tr.solved-row:hover td {
-  background-color: #0f2a24 !important;
+  background-color: transparent !important;
 }
 
 /* Revised Checkbox Styling */
@@ -168,9 +169,9 @@ tbody tr.solved-row:hover td {
 }
 
 tbody td {
-  padding: 1rem;
+  padding: 0.65rem 0.85rem;
   vertical-align: middle;
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: var(--text-dark);
   contain: layout style;
   background-color: transparent;
@@ -207,17 +208,17 @@ tbody td {
 }
 
 .badge-company {
-  background-color: rgba(96, 165, 250, 0.12);
-  color: #e8f1ff;
-  border-color: rgba(96, 165, 250, 0.35);
+  background-color: rgba(96, 165, 250, 0.18);
+  color: #e5f0ff;
+  border-color: rgba(96, 165, 250, 0.5);
   font-size: 0.85rem;
   padding: 0.28rem 0.55rem;
 }
 
 .badge-topic {
-  background-color: rgba(192, 132, 252, 0.12);
-  color: #f0e8ff;
-  border-color: rgba(192, 132, 252, 0.35);
+  background-color: rgba(192, 132, 252, 0.18);
+  color: #f7ecff;
+  border-color: rgba(192, 132, 252, 0.5);
   font-size: 0.85rem;
   padding: 0.28rem 0.55rem;
 }
@@ -227,7 +228,7 @@ tbody td {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .filter-pill {
@@ -277,6 +278,27 @@ tbody td {
 
 .btn-primary:hover {
   box-shadow: 0 4px 8px rgba(239, 68, 68, 0.35);
+}
+
+.btn-success {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.7);
+  color: #fecaca;
+}
+
+.btn-success:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fee2e2;
+}
+
+.btn-outline-danger {
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+}
+
+.btn-outline-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fee2e2;
 }
 
 .btn-secondary {
@@ -398,7 +420,7 @@ tbody td {
 
 /* Filters Section */
 .filters-section {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .filters-grid {
@@ -452,6 +474,16 @@ tbody td {
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-dark);
+}
+
+/* Title column emphasis */
+.title-cell .title-link {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.title-cell .title-link:hover {
+  color: var(--active-color);
 }
 
 .stat-icon {

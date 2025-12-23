@@ -4,11 +4,11 @@
   left: 0;
   top: 0;
   height: 100vh;
-  width: 260px;
+  width: 220px;
   background: linear-gradient(180deg, var(--sidebar-gradient-start), var(--sidebar-gradient-end));
   display: flex;
   flex-direction: column;
-  padding: 1.5rem;
+  padding: 1.25rem;
   box-shadow: 2px 0 18px rgba(0, 0, 0, 0.35);
   z-index: 1000;
   transition: width 0.15s ease, padding 0.15s ease;
@@ -62,11 +62,11 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
+  padding: 0.85rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
-  margin-bottom: 2rem;
-  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+  margin-top: 2.5rem;
 }
 
 .sidebar.collapsed .sidebar-header {
@@ -121,7 +121,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
+  padding: 0.85rem 0.9rem;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
@@ -137,20 +137,20 @@
 }
 
 .nav-item-active {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fef2f2;
   font-weight: 600;
 }
 
 .nav-item-active::before {
   content: '';
   position: absolute;
-  left: 0;
+  left: -0.5rem;
   top: 50%;
   transform: translateY(-50%);
   width: 4px;
   height: 60%;
-  background: white;
+  background: var(--active-color);
   border-radius: 0 4px 4px 0;
 }
 
@@ -187,7 +187,7 @@
 
 /* Footer */
 .sidebar-footer {
-  padding: 1.5rem 1rem;
+  padding: 1.1rem 0.8rem;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
