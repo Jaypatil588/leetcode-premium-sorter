@@ -190,21 +190,21 @@ tbody td {
 }
 
 .badge-easy {
-  background-color: rgba(16, 185, 129, 0.2);
-  color: #0f291f;
-  border-color: rgba(16, 185, 129, 0.55);
+  background-color: rgba(16, 185, 129, 0.4);
+  color: #f9fafb;
+  border-color: rgba(16, 185, 129, 0.8);
 }
 
 .badge-medium {
-  background-color: rgba(245, 158, 11, 0.22);
-  color: #2b1d05;
-  border-color: rgba(245, 158, 11, 0.6);
+  background-color: rgba(245, 158, 11, 0.4);
+  color: #f9fafb;
+  border-color: rgba(245, 158, 11, 0.8);
 }
 
 .badge-hard {
-  background-color: rgba(239, 68, 68, 0.28);
-  color: #2b0c0c;
-  border-color: rgba(239, 68, 68, 0.7);
+  background-color: rgba(239, 68, 68, 0.45);
+  color: #f9fafb;
+  border-color: rgba(239, 68, 68, 0.9);
 }
 
 .badge-company {
@@ -454,7 +454,7 @@ tbody td {
 .stat-card {
   flex: 1;
   min-width: 200px;
-  background: var(--card-background);
+  background: var(--surface-muted);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 1.5rem;
@@ -474,6 +474,10 @@ tbody td {
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-dark);
+}
+
+.stat-card .text-muted {
+  color: var(--text-muted) !important;
 }
 
 /* Title column emphasis */

@@ -1,8 +1,8 @@
 :root {
   /* Material dark palette with restrained red accent */
-  --background-light: #0b0b0d;
-  --card-background: #121215;
-  --surface-muted: #16161a;
+  --background-light: #050508;
+  --card-background: #13131b;
+  --surface-muted: #1b1b24;
   --text-dark: #e5e7eb;
   --text-muted: #9ba0a5;
   --border-color: #26262c;
@@ -22,8 +22,8 @@
   --difficulty-hard: #ef4444;
 
   /* Sidebar gradient */
-  --sidebar-gradient-start: #11111a;
-  --sidebar-gradient-end: #0d0d14;
+  --sidebar-gradient-start: #101018;
+  --sidebar-gradient-end: #07070e;
 
   /* Typography */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
