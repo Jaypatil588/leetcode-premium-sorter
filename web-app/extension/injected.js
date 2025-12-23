@@ -1,5 +1,9 @@
 (function() {
-  console.log('💉 Injecting LeetCode Auth API into page context...');
+  console.log('💉 Injecting LeetCode Auth API into page context...', {
+    location: window.location.href,
+    hasChrome: typeof chrome !== 'undefined',
+    hasRuntime: typeof chrome?.runtime !== 'undefined'
+  });
   
   // Create the API object in the main window
   window.leetcodeAuth = {
@@ -48,7 +52,7 @@
     },
 
     isInstalled: true,
-    version: '1.0.0'
+    version: '1.0.2'
   };
 
   // Dispatch event to notify app

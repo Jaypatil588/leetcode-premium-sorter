@@ -4,7 +4,8 @@
 console.log('🔧 LeetCode Auth Helper: Content script starting...', {
   url: window.location.href,
   hasChrome: typeof chrome !== 'undefined',
-  hasRuntime: typeof chrome?.runtime !== 'undefined'
+  hasRuntime: typeof chrome?.runtime !== 'undefined',
+  manifest: chrome?.runtime?.getManifest?.()
 });
 
 // We need to inject the API script into the page context (Main World)

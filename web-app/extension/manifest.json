@@ -1,18 +1,16 @@
 {
   "manifest_version": 3,
   "name": "LeetCode Auth Helper",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Secure OAuth-like authentication for LeetCode Premium Sorter",
   "permissions": [
     "cookies",
     "storage",
-    "tabs"
+    "tabs",
+    "<all_urls>"
   ],
   "host_permissions": [
-    "https://leetcode.com/*",
-    "http://localhost:5173/*",
-    "http://localhost:*/*",
-    "https://leetcode-premium-sorter.vercel.app/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -20,6 +18,7 @@
   "content_scripts": [
     {
       "matches": [
+        "<all_urls>",
         "https://leetcode-premium-sorter.vercel.app/*",
         "http://localhost:5173/*",
         "http://localhost:*/*"
