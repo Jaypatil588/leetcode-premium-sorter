@@ -1056,7 +1056,7 @@ function App() {
           <div className="table-container">
             <div className="table-responsive">
               <table className="table mb-0">
-                <thead style={color='white'}>
+                <thead>
                   <tr>
                     <th className={`sortable sort-${getSortState('title')}`} onClick={() => handleSort('title')}>
                       Title <span className="sort-icon">{getSortIcon('title')}</span>
