@@ -154,8 +154,8 @@ function App() {
   const [sortConfigs, setSortConfigs] = useState(() => {
     try {
       const saved = localStorage.getItem('sortConfigs');
-      return saved ? JSON.parse(saved) : [{ key: 'frequency', direction: 'desc' }];
-    } catch { return [{ key: 'frequency', direction: 'desc' }]; }
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
 
   // Persist state
@@ -487,11 +487,14 @@ function App() {
       result = result.filter(q => q.title.toLowerCase().includes(lower));
     }
 
-    // Sort - Apply all sort configs in order
-    const activeSortConfigs = sortConfigs.length > 0 ? sortConfigs : [{ key: 'frequency', direction: 'desc' }];
+    // Sort - Apply all sort configs in order (only if user has explicitly set sorts)
+    if (sortConfigs.length === 0) {
+      // No sort applied - return questions in original order
+      return result;
+    }
     
     result.sort((a, b) => {
-      for (const sortConfig of activeSortConfigs) {
+      for (const sortConfig of sortConfigs) {
         let valA, valB;
 
         if (sortConfig.key === 'frequency') {
@@ -539,8 +542,9 @@ function App() {
           valA = solvedMap[a.title] ? 1 : 0;
           valB = solvedMap[b.title] ? 1 : 0;
         } else if (sortConfig.key === 'lcSolved') {
-          valA = lcSolvedMap[a.title] ? 1 : 0;
-          valB = lcSolvedMap[b.title] ? 1 : 0;
+          // Explicitly convert to numbers to ensure proper comparison
+          valA = lcSolvedMap[a.title] === true ? 1 : 0;
+          valB = lcSolvedMap[b.title] === true ? 1 : 0;
         } else {
           valA = a[sortConfig.key];
           valB = b[sortConfig.key];
@@ -624,10 +628,7 @@ function App() {
         } else {
           // Remove from stack (third click)
           newConfigs = current.filter((_, i) => i !== existingIndex);
-          // Ensure at least one sort remains
-          if (newConfigs.length === 0) {
-            newConfigs = [{ key: 'frequency', direction: 'desc' }];
-          }
+          // Allow empty array - no default sort
         }
       } else {
         // Add new sort (first click on this column)
