@@ -85,6 +85,11 @@ thead th {
   background-color: transparent;
 }
 
+/* Ensure table headers stay light even with Bootstrap defaults */
+.table thead th {
+  color: #f9fafb !important;
+}
+
 thead th.sortable {
   cursor: pointer;
   user-select: none;
