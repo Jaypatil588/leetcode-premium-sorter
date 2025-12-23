@@ -1053,12 +1053,7 @@ function App() {
 
         <div className="card" style={{ marginBottom: '0' }}>
           <div className="card-header" style={{ padding: '0.5rem 0.85rem' }}>
-            <div className="d-flex justify-content-between align-items-center">
-              <div>
 
-              </div>
-
-            </div>
           </div>
 
           <div className="table-container">
@@ -1188,7 +1183,7 @@ function App() {
                         {lcSolvedMap[q.title] ? (
                           <span className="check-icon">✓</span>
                         ) : (
-                          <span style={{ color: 'var(--border-color)' }}>•</span>
+                          <span style={{ color: 'var(--border-color)' }}></span>
                         )}
                       </td>
                       <td className="text-center" onClick={(e) => e.stopPropagation()}>

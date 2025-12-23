@@ -22,8 +22,6 @@
   background: var(--card-background);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  padding: 0.75rem 0.85rem;
-  margin-bottom: 0.5rem;
   border: 1px solid var(--border-color);
   contain: layout style;
 }
@@ -75,7 +73,7 @@ thead {
 
 thead th {
   padding: 0.75rem 0.9rem;
-  font-size: 0.85rem;
+  font-size: 1em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -92,6 +90,7 @@ thead th {
   justify-content: center;
   text-align: left;
   vertical-align: middle;
+  padding: 1rem;
 }
 
 thead th.sortable {
@@ -189,6 +188,7 @@ tbody td {
 /* Ensure body text stays light on dark table rows */
 .table tbody td {
   color: white !important;
+  padding: 1.5rem;
 }
 
 /* Badges */
@@ -601,8 +601,11 @@ textarea,
 .sort-icon {
   display: inline-block;
   margin-left: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 1rem;
   opacity: 0.5;
+  text-align: center;
+  vertical-align: middle;
+  margin-bottom: 0.2rem;
 }
 
 thead th.sortable:hover .sort-icon {
