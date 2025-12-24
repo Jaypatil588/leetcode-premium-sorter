@@ -306,7 +306,7 @@ function App() {
     }
   };
 
-  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf, silent = false, username = lcUsername) => {
+  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf, silent = true, username = lcUsername) => {
     const usernameToUse = username || lcUsername;
     if (!usernameToUse) {
       if (!silent) alert('Please enter your LeetCode username first.');
