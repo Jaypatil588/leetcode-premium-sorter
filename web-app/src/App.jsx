@@ -119,6 +119,16 @@ function App() {
       return JSON.parse(localStorage.getItem('selectedDifficulties')) || [];
     } catch { return []; }
   });
+  const [hidePremium, setHidePremium] = useState(() => {
+    try {
+      return localStorage.getItem('hidePremium') === 'true';
+    } catch { return false; }
+  });
+  const [premiumCheckComplete, setPremiumCheckComplete] = useState(() => {
+    try {
+      return localStorage.getItem('premiumCheckComplete') === 'true';
+    } catch { return false; }
+  });
   const [searchQuery, setSearchQuery] = useState(() => {
     return localStorage.getItem('searchQuery') || '';
   });
@@ -138,7 +148,13 @@ function App() {
       return JSON.parse(localStorage.getItem('lcSolvedMap')) || {};
     } catch { return {}; }
   });
+  const [premiumMap, setPremiumMap] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('premiumMap')) || {};
+    } catch { return {}; }
+  });
   const [fetchingLC, setFetchingLC] = useState(false);
+  const [fetchingPremium, setFetchingPremium] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
 
   // Pagination - Load from localStorage
@@ -168,6 +184,10 @@ function App() {
   }, [lcSolvedMap]);
 
   useEffect(() => {
+    localStorage.setItem('premiumMap', JSON.stringify(premiumMap));
+  }, [premiumMap]);
+
+  useEffect(() => {
     localStorage.setItem('lcUsername', lcUsername);
   }, [lcUsername]);
 
@@ -195,6 +215,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('selectedDifficulties', JSON.stringify(selectedDifficulties));
   }, [selectedDifficulties]);
+
+  useEffect(() => {
+    localStorage.setItem('hidePremium', hidePremium.toString());
+  }, [hidePremium]);
+
+  useEffect(() => {
+    localStorage.setItem('premiumCheckComplete', premiumCheckComplete.toString());
+  }, [premiumCheckComplete]);
 
   useEffect(() => {
     localStorage.setItem('searchQuery', searchQuery);
@@ -303,6 +331,156 @@ function App() {
       alert('Login failed: ' + error.message);
     } finally {
       setFetchingLC(false);
+    }
+  };
+
+  // Function to check premium status for ALL problems
+  const checkAllPremiumStatus = async (sessionToken = lcSession, csrfToken = lcCsrf) => {
+    if (!sessionToken || !csrfToken) {
+      console.log('No session token available for premium check');
+      return;
+    }
+
+    if (premiumCheckComplete) {
+      console.log('Premium check already completed');
+      return;
+    }
+
+    setFetchingPremium(true);
+    try {
+      const query = `
+        query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
+          problemsetQuestionList: questionList(
+            categorySlug: $categorySlug
+            limit: $limit
+            skip: $skip
+            filters: $filters
+          ) {
+            total: totalNum
+            questions: data {
+              title
+              isPaidOnly
+            }
+          }
+        }
+      `;
+
+      const newPremiumMap = { ...premiumMap };
+      let skip = 0;
+      const limit = 50;
+      let hasMore = true;
+      let totalFetched = 0;
+
+      // Fetch all problems in batches
+      while (hasMore) {
+        const response = await fetch('/api/leetcode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-lc-session': sessionToken,
+            'x-lc-csrf': csrfToken,
+            'x-csrftoken': csrfToken
+          },
+          body: JSON.stringify({
+            query,
+            variables: { 
+              categorySlug: "", 
+              limit: limit, 
+              skip: skip, 
+              filters: {} 
+            }
+          })
+        });
+
+        if (!response.ok) {
+          console.warn('Failed to fetch premium status:', response.status);
+          break;
+        }
+
+        const data = await response.json();
+        
+        if (data.errors) {
+          console.warn('GraphQL error:', data.errors);
+          break;
+        }
+
+        const list = data.data?.problemsetQuestionList;
+        if (!list || !list.questions || list.questions.length === 0) {
+          hasMore = false;
+        } else {
+          list.questions.forEach(q => {
+            newPremiumMap[q.title] = q.isPaidOnly || false;
+          });
+          
+          skip += limit;
+          totalFetched += list.questions.length;
+          
+          // Update state incrementally for better UX
+          setPremiumMap({ ...newPremiumMap });
+          
+          console.log(`Fetched premium status for ${totalFetched} problems...`);
+          
+          // Check if we've fetched all problems
+          if (list.total && totalFetched >= list.total) {
+            hasMore = false;
+          }
+        }
+      }
+
+      setPremiumMap(newPremiumMap);
+      setPremiumCheckComplete(true);
+      console.log(`Completed premium status check for ${Object.keys(newPremiumMap).length} problems`);
+    } catch (err) {
+      console.error("Premium status check error:", err);
+    } finally {
+      setFetchingPremium(false);
+    }
+  };
+
+  // Function to check premium status for a single problem by title slug
+  const checkSingleProblemPremium = async (titleSlug, sessionToken = lcSession, csrfToken = lcCsrf) => {
+    if (!sessionToken || !csrfToken || !titleSlug) {
+      return null;
+    }
+
+    try {
+      const query = `
+        query questionTitle($titleSlug: String!) {
+          question(titleSlug: $titleSlug) {
+            title
+            isPaidOnly
+          }
+        }
+      `;
+
+      const response = await fetch('/api/leetcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-lc-session': sessionToken,
+          'x-lc-csrf': csrfToken,
+          'x-csrftoken': csrfToken
+        },
+        body: JSON.stringify({
+          query,
+          variables: { titleSlug }
+        })
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data.errors || !data.data?.question) {
+        return null;
+      }
+
+      return data.data.question.isPaidOnly || false;
+    } catch (err) {
+      console.error("Single premium check error:", err);
+      return null;
     }
   };
 
@@ -443,6 +621,15 @@ function App() {
       });
   }, []);
 
+  // Auto-check premium status on first load when logged in
+  useEffect(() => {
+    if (lcSession && lcCsrf && !premiumCheckComplete && !fetchingPremium && questions.length > 0) {
+      console.log('Auto-checking premium status for all problems...');
+      checkAllPremiumStatus(lcSession, lcCsrf);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lcSession, lcCsrf, questions.length, premiumCheckComplete]);
+
   // Extract unique options
   const companyOptions = useMemo(() => {
     const companies = new Set();
@@ -479,6 +666,11 @@ function App() {
     // Filter by Difficulty
     if (selectedDifficulties.length > 0) {
       result = result.filter(q => selectedDifficulties.includes(q.difficulty.toUpperCase()));
+    }
+
+    // Filter by Premium Status
+    if (hidePremium) {
+      result = result.filter(q => premiumMap[q.title] !== true);
     }
 
     // Filter by Search
@@ -575,12 +767,12 @@ function App() {
     });
 
     return result;
-  }, [questions, selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs, solvedMap, lcSolvedMap]);
+  }, [questions, selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs, solvedMap, lcSolvedMap, premiumMap, hidePremium]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs]);
+  }, [selectedCompanies, selectedTopics, selectedDifficulties, searchQuery, sortConfigs, hidePremium]);
 
   const totalPages = Math.ceil(processedQuestions.length / itemsPerPage);
   const currentQuestions = processedQuestions.slice(
@@ -658,6 +850,7 @@ function App() {
     setSelectedTopics([]);
     setSelectedDifficulties([]);
     setSearchQuery('');
+    setHidePremium(false);
   };
 
   if (loading) return <div className="p-5 text-center">Loading data...</div>;
@@ -698,7 +891,7 @@ function App() {
       <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="card filters-section" style={{ marginBottom: '1rem' }}>
           <div className="card-body" style={{ padding: '1rem' }}>
-            {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery) && (
+            {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery || hidePremium) && (
               <div className="d-flex justify-content-between align-items-start" style={{ marginBottom: '0.75rem' }}>
                 <div className="filter-pills flex-grow-1">
                   {selectedCompanies.map(company => (
@@ -740,6 +933,17 @@ function App() {
                       <button 
                         className="filter-pill-remove" 
                         onClick={() => setSearchQuery('')}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  {hidePremium && (
+                    <div className="filter-pill">
+                      <span>Hide Premium</span>
+                      <button 
+                        className="filter-pill-remove" 
+                        onClick={() => setHidePremium(false)}
                       >
                         ×
                       </button>
@@ -791,6 +995,41 @@ function App() {
                 />
               </div>
             </div>
+            <div className="row mt-2">
+              <div className="col-md-12 mb-2">
+                <div className="form-check">
+                  <input 
+                    className="form-check-input" 
+                    type="checkbox" 
+                    id="hidePremium"
+                    checked={hidePremium}
+                    onChange={(e) => setHidePremium(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="hidePremium">
+                    Hide Premium Problems
+                  </label>
+                </div>
+              </div>
+            </div>
+            {fetchingPremium && (
+              <div className="row mt-2">
+                <div className="col-12">
+                  <small className="text-muted">
+                    <span className="loading-spinner me-2"></span>
+                    Checking premium status for all problems... ({Object.keys(premiumMap).length} checked)
+                  </small>
+                </div>
+              </div>
+            )}
+            {premiumCheckComplete && !fetchingPremium && (
+              <div className="row mt-2">
+                <div className="col-12">
+                  <small className="text-muted">
+                    ✓ Premium status checked for all problems ({Object.keys(premiumMap).filter(k => premiumMap[k]).length} premium, {Object.keys(premiumMap).filter(k => !premiumMap[k]).length} free)
+                  </small>
+                </div>
+              </div>
+            )}
             
             <div className="row">
               <div className="col-12">
@@ -1106,13 +1345,14 @@ function App() {
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="title-cell">
-                        <a 
-                          href={q.link} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-decoration-none fw-semibold title-link"
-                          style={{ color: 'var(--text-dark)' }}
-                          onClick={(e) => {
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <a 
+                            href={q.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-decoration-none fw-semibold title-link"
+                            style={{ color: 'var(--text-dark)' }}
+                            onClick={(e) => {
                             e.stopPropagation();
                             // Trigger sync when clicking on problem link
                             if (lcUsername && lcSession) {
@@ -1122,9 +1362,29 @@ function App() {
                               });
                             }
                           }}
-                        >
-                          {q.title}
-                        </a>
+                          >
+                            {q.title}
+                          </a>
+                          {premiumMap[q.title] === true && (
+                            <span 
+                              className="badge" 
+                              style={{ 
+                                backgroundColor: '#3E2723', 
+                                color: '#FFA500', 
+                                fontSize: '0.75rem',
+                                fontWeight: '500',
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '14px',
+                                border: 'none',
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                letterSpacing: '0.01em'
+                              }}
+                              title="LeetCode Premium"
+                            >
+                              Premium
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span className={`badge ${
