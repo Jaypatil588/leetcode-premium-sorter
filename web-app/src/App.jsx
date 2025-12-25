@@ -588,11 +588,6 @@ function App() {
           }
       });
       setLcSolvedMap(newLcMap);
-      if (!silent) {
-        alert(`Synced! Found ${allSolved.length} total solved questions (${newCount} new added).`);
-      } else {
-        console.log(`Auto-synced: Found ${allSolved.length} total solved questions (${newCount} new added).`);
-      }
 
     } catch (err) {
       console.error("LeetCode Fetch Error:", err);
