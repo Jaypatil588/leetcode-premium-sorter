@@ -818,7 +818,7 @@ function App() {
           // Allow empty array - no default sort
         }
       } else {
-        // Add new sort (first click on this column)
+        // Add new sort (first click on this column) 
         newConfigs = [...current, { key, direction: 'desc' }];
       }
       
