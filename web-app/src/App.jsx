@@ -1,104 +1,15 @@
-import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
-import Sidebar from './components/Sidebar';
-import ProgressBar from './components/ProgressBar';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import AppLayout from './components/Layout/AppLayout/AppLayout.jsx';
 import './App.css';
-import LoginModal from './components/LoginModal';
+import LoginModal from './components/Features/Auth/LoginModal/LoginModal.jsx';
+import FiltersPanel from './components/Features/Filters/FiltersPanel/FiltersPanel.jsx';
+import AuthSection from './components/Features/Auth/AuthSection/AuthSection.jsx';
+import { MAJOR_COMPANIES, SIDEBAR_STORAGE_KEY, fetchUserProfileApi } from './utilities/leetcodeApi.js';
 
-const StatsBar = lazy(() => import('./components/StatsBar'));
-const QuestionsTable = lazy(() => import('./components/QuestionsTable'));
-
-const SIDEBAR_STORAGE_KEY = 'sidebarCollapsed';
-
-const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [filterText, setFilterText] = useState('');
-  const containerRef = useRef(null);
-
-
-
-
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter(opt => 
-    opt.toLowerCase().includes(filterText.toLowerCase())
-  );
-
-  const toggleOption = (option) => {
-    if (selected.includes(option)) {
-      onChange(selected.filter(s => s !== option));
-    } else {
-      onChange([...selected, option]);
-    }
-  };
-
-  return (
-    <div className="dropdown" ref={containerRef}>
-      <label className="form-label fw-bold" style={{ fontSize: '0.9rem', marginBottom: '0.15rem' }}>{label}</label>
-      <div className="w-100">
-        <button 
-          className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" 
-          type="button" 
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <span className="text-truncate">
-            {selected.length === 0 ? placeholder : `${selected.length} selected`}
-          </span>
-          <span className="dropdown-toggle"></span>
-        </button>
-        
-        {isOpen && (
-          <div className="dropdown-menu show w-100 p-2 shadow" style={{ maxHeight: '300px', overflowY: 'auto', zIndex: 9999 }}>
-            <input 
-              type="text" 
-              className="form-control mb-2" 
-              placeholder="Search..." 
-              value={filterText} 
-              onChange={e => setFilterText(e.target.value)} 
-              autoFocus
-            />
-            <div className="d-flex flex-column gap-1">
-              <button 
-                className="btn btn-sm btn-link text-decoration-none text-start p-0 mb-1"
-                onClick={() => onChange([])}
-              >
-                Clear selection
-              </button>
-              {filteredOptions.length > 0 ? filteredOptions.map(opt => (
-                <div key={opt} className="form-check" onClick={(e) => { e.stopPropagation(); toggleOption(opt); }}>
-                  <input 
-                    className="form-check-input" 
-                    type="checkbox" 
-                    checked={selected.includes(opt)} 
-                    readOnly 
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <label className="form-check-label w-100" style={{ cursor: 'pointer' }}>
-                    {opt}
-                  </label>
-                </div>
-              )) : (
-                <div className="text-muted small">No matches found</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const MAJOR_COMPANIES = [
-  'Microsoft', 'Apple', 'Google', 'Netflix', 'Meta', 'Uber', 'Amazon', 'TikTok', 'X'
-];
+const StatsBar = lazy(() => import('./components/Features/Stats/StatsBar/StatsBar.jsx'));
+const QuestionsTable = lazy(
+  () => import('./components/Features/Questions/QuestionsTable/QuestionsTable.jsx')
+);
 
 function App() {
   const [questions, setQuestions] = useState([]);
@@ -172,45 +83,15 @@ function App() {
 
   const fetchUserProfile = async (sessionToken, csrfToken, allCookies) => {
     try {
-      const query = `
-        query globalData {
-          userStatus {
-            username
-            isSignedIn
-            isPremium
-            avatar
-          }
-        }
-      `;
-      
-      const headers = {
-          'Content-Type': 'application/json',
-          'x-lc-session': sessionToken,
-          'x-lc-csrf': csrfToken,
-          'x-csrftoken': csrfToken
-      };
-      if (allCookies) {
-          headers['x-lc-all-cookies'] = allCookies;
-      }
+      const data = await fetchUserProfileApi(sessionToken, csrfToken, allCookies);
 
-      const response = await fetch('/api/leetcode', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query })
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch user profile');
-      
-      const data = await response.json();
-      console.log('User Data:', data); 
-      
       if (data.data?.userStatus?.isSignedIn) {
         const username = data.data.userStatus.username;
         setLcUsername(username);
         return username;
-      } else {
-          console.warn('User is not signed in according to LeetCode API');
       }
+
+      console.warn('User is not signed in according to LeetCode API');
       return null;
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -834,243 +715,56 @@ function App() {
 
   if (loading) return <div className="p-5 text-center">Loading data...</div>;
 
-  return (
-    <div className="app-container">
-      <Sidebar 
-        username={lcUsername}
-        totalQuestions={questions.length}
-        collapsed={sidebarCollapsed}
-        onToggle={toggleSidebar}
-      />
-      
-      <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <div className="card filters-section" style={{ marginBottom: '1rem' }}>
-          <div className="card-body" style={{ padding: '1rem' }}>
-            {(selectedCompanies.length > 0 || selectedTopics.length > 0 || selectedDifficulties.length > 0 || searchQuery || hidePremium) && (
-              <div className="d-flex justify-content-between align-items-start" style={{ marginBottom: '0.75rem' }}>
-                <div className="filter-pills flex-grow-1">
-                  {selectedCompanies.map(company => (
-                    <div key={company} className="filter-pill">
-                      <span>{company}</span>
-                      <button 
-                        className="filter-pill-remove" 
-                        onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== company))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {selectedTopics.map(topic => (
-                    <div key={topic} className="filter-pill">
-                      <span>{topic}</span>
-                      <button 
-                        className="filter-pill-remove" 
-                        onClick={() => setSelectedTopics(prev => prev.filter(t => t !== topic))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {selectedDifficulties.map(diff => (
-                    <div key={diff} className="filter-pill">
-                      <span>{diff}</span>
-                      <button 
-                        className="filter-pill-remove" 
-                        onClick={() => setSelectedDifficulties(prev => prev.filter(d => d !== diff))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {searchQuery && (
-                    <div className="filter-pill">
-                      <span>Search: "{searchQuery}"</span>
-                      <button 
-                        className="filter-pill-remove" 
-                        onClick={() => setSearchQuery('')}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                  {hidePremium && (
-                    <div className="filter-pill">
-                      <span>Hide Premium</span>
-                      <button 
-                        className="filter-pill-remove" 
-                        onClick={() => setHidePremium(false)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <button className="btn btn-ghost btn-sm ms-2 flex-shrink-0" onClick={clearFilters}>
-                  Clear All
-                </button>
-              </div>
-            )}
-            
-            <div className="row" style={{ marginBottom: '0.75rem' }}>
-              <div className="col-md-3 mb-2">
-                <MultiSelect 
-                  label="Companies" 
-                  options={companyOptions} 
-                  selected={selectedCompanies} 
-                  onChange={setSelectedCompanies} 
-                  placeholder="All Companies"
-                />
-              </div>
-              <div className="col-md-3 mb-2">
-                <MultiSelect 
-                  label="Topics" 
-                  options={topicOptions} 
-                  selected={selectedTopics} 
-                  onChange={setSelectedTopics} 
-                  placeholder="All Topics"
-                />
-              </div>
-              <div className="col-md-3 mb-2">
-                <MultiSelect 
-                  label="Difficulty" 
-                  options={difficultyOptions} 
-                  selected={selectedDifficulties} 
-                  onChange={setSelectedDifficulties} 
-                  placeholder="All Difficulties"
-                />
-              </div>
-              <div className="col-md-3 mb-2">
-                <label className="form-label fw-bold" style={{ fontSize: '0.9rem', marginBottom: '0.15rem' }}>Search</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Search title..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="row mt-2">
-              <div className="col-md-12 mb-2">
-                <div className="form-check">
-                  <input 
-                    className="form-check-input" 
-                    type="checkbox" 
-                    id="hidePremium"
-                    checked={hidePremium}
-                    onChange={(e) => setHidePremium(e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="hidePremium">
-                    Hide Premium Problems
-                  </label>
-                </div>
-              </div>
-            </div>
-            {fetchingPremium && (
-              <div className="row mt-2">
-                <div className="col-12">
-                  <small className="text-muted">
-                    <span className="loading-spinner me-2"></span>
-                    Checking premium status for all problems... ({Object.keys(premiumMap).length} checked)
-                  </small>
-                </div>
-              </div>
-            )}
-            {premiumCheckComplete && !fetchingPremium && (
-              <div className="row mt-2">
-                <div className="col-12">
-                  <small className="text-muted">
-                    ✓ Premium status checked for all problems ({Object.keys(premiumMap).filter(k => premiumMap[k]).length} premium, {Object.keys(premiumMap).filter(k => !premiumMap[k]).length} free)
-                  </small>
-                </div>
-              </div>
-            )}
-            
-            <div className="row">
-              <div className="col-12">
-                {!lcSession ? (
-                  <div className="alert alert-info shadow-sm border-0 mb-0" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))', border: '1px solid rgba(99, 102, 241, 0.2) !important', padding: '0.75rem 1rem' }}>
-                    <div className="d-flex align-items-center justify-content-between">
-                      <div className="flex-grow-1">
-                        <strong style={{ color: 'var(--active-color)', fontSize: '0.95rem' }}>🔐 Authentication Required</strong>
-                        <span className="ms-2 small" style={{ color: 'var(--text-muted)' }}>Login to LeetCode to sync progress</span>
-                      </div>
-                      <div>
-                        <button onClick={loadTokensFromHelper} className="btn btn-primary btn-sm me-2" disabled={fetchingLC}>
-                           {fetchingLC ? 'Logging in...' : 'Login with LeetCode ⚡'}
-                        </button>
-                        <button 
-                          className="btn btn-outline-secondary btn-sm"
-                          onClick={() => {
-                             setManualSessionInput(lcSession);
-                             setManualCsrfInput(lcCsrf);
-                             setShowManualLogin(true);
-                           }}
-                        >
-                          Manual Input
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="form-label fw-bold" style={{ color: 'var(--text-dark)', fontSize: '0.9rem', marginBottom: '0.15rem' }}>LeetCode Sync</label>
-                    <div className="input-group">
-                      <span className="input-group-text">@</span>
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        placeholder="LeetCode Username" 
-                        value={lcUsername}
-                        onChange={(e) => setLcUsername(e.target.value)}
-                      />
-                      <button 
-                        className="btn btn-primary" 
-                        onClick={() => fetchLeetCodeSubmissions(lcSession, lcCsrf, false, lcUsername)} 
-                        disabled={fetchingLC || !lcUsername || !lcSession}
-                      >
-                        {fetchingLC ? (
-                          <><span className="loading-spinner me-2"></span>Syncing...</>
-                        ) : (
-                          'Sync Solved'
-                        )}
-                      </button>
-                      <button
-                        className="btn btn-outline-danger"
-                        type="button"
-                        onClick={() => {
-                            if(window.confirm('Are you sure you want to logout?')) {
-                                setLcSession('');
-                                setLcCsrf('');
-                                setLcUsername('');
-                                setLcAllCookies('');
-                                setLcSolvedMap({});
-                                setPremiumMap({});
-                                localStorage.removeItem('lcSession');
-                                localStorage.removeItem('lcCsrf');
-                                localStorage.removeItem('lcUsername');
-                                localStorage.removeItem('lcAllCookies');
-                                localStorage.removeItem('lcSolvedMap');
-                                localStorage.removeItem('premiumMap');
-                            }
-                        }}
-                      >
-                        Logout
-                      </button>
-                    </div>
-                    <div className="form-text small d-flex justify-content-between" style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                      <span>
-                          <span style={{ color: 'var(--badge-green)' }}>✓ Logged in as {lcUsername || 'User'}</span>
-                      </span>
-                      {/* Logout handled by button above */}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-        </div>
+  const header = (
+    <div className="card filters-section" style={{ marginBottom: '1rem' }}>
+      <div className="card-body" style={{ padding: '1rem' }}>
+        <FiltersPanel
+          selectedCompanies={selectedCompanies}
+          setSelectedCompanies={setSelectedCompanies}
+          selectedTopics={selectedTopics}
+          setSelectedTopics={setSelectedTopics}
+          selectedDifficulties={selectedDifficulties}
+          setSelectedDifficulties={setSelectedDifficulties}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          hidePremium={hidePremium}
+          setHidePremium={setHidePremium}
+          fetchingPremium={fetchingPremium}
+          premiumMap={premiumMap}
+          premiumCheckComplete={premiumCheckComplete}
+          clearFilters={clearFilters}
+          companyOptions={companyOptions}
+          topicOptions={topicOptions}
+          difficultyOptions={difficultyOptions}
+        />
+        <AuthSection
+          lcSession={lcSession}
+          lcUsername={lcUsername}
+          setLcUsername={setLcUsername}
+          fetchingLC={fetchingLC}
+          loadTokensFromHelper={loadTokensFromHelper}
+          setManualSessionInput={setManualSessionInput}
+          setManualCsrfInput={setManualCsrfInput}
+          setShowManualLogin={setShowManualLogin}
+          fetchLeetCodeSubmissions={fetchLeetCodeSubmissions}
+          setLcSession={setLcSession}
+          setLcCsrf={setLcCsrf}
+          setLcAllCookies={setLcAllCookies}
+          setLcSolvedMap={setLcSolvedMap}
+          setPremiumMap={setPremiumMap}
+        />
       </div>
+    </div>
+  );
 
+  return (
+    <AppLayout
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={toggleSidebar}
+      username={lcUsername}
+      totalQuestions={questions.length}
+      header={header}
+    >
       <LoginModal
         show={showManualLogin}
         session={manualSessionInput}
@@ -1089,40 +783,39 @@ function App() {
         }}
       />
 
-        <Suspense fallback={null}>
-          <StatsBar
-            totalSolvedLc={totalSolvedLc}
-            solvedPercent={solvedPercent}
-            goal={goal}
-            totalRevised={totalRevised}
-            revisedPercent={revisedPercent}
-            companyStats={companyStats}
-            selectedCompanies={selectedCompanies}
-          />
-        </Suspense>
+      <Suspense fallback={null}>
+        <StatsBar
+          totalSolvedLc={totalSolvedLc}
+          solvedPercent={solvedPercent}
+          goal={goal}
+          totalRevised={totalRevised}
+          revisedPercent={revisedPercent}
+          companyStats={companyStats}
+          selectedCompanies={selectedCompanies}
+        />
+      </Suspense>
 
-        <Suspense fallback={null}>
-          <QuestionsTable
-            questions={currentQuestions}
-            solvedMap={solvedMap}
-            lcSolvedMap={lcSolvedMap}
-            selectedCompanies={selectedCompanies}
-            premiumMap={premiumMap}
-            toggleSolved={toggleSolved}
-            handleSort={handleSort}
-            getSortState={getSortState}
-            getSortIcon={getSortIcon}
-            totalPages={totalPages}
-            currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
-            fetchLeetCodeSubmissions={fetchLeetCodeSubmissions}
-            lcUsername={lcUsername}
-            lcSession={lcSession}
-            lcCsrf={lcCsrf}
-          />
-        </Suspense>
-      </main>
-    </div>
+      <Suspense fallback={null}>
+        <QuestionsTable
+          questions={currentQuestions}
+          solvedMap={solvedMap}
+          lcSolvedMap={lcSolvedMap}
+          selectedCompanies={selectedCompanies}
+          premiumMap={premiumMap}
+          toggleSolved={toggleSolved}
+          handleSort={handleSort}
+          getSortState={getSortState}
+          getSortIcon={getSortIcon}
+          totalPages={totalPages}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          fetchLeetCodeSubmissions={fetchLeetCodeSubmissions}
+          lcUsername={lcUsername}
+          lcSession={lcSession}
+          lcCsrf={lcCsrf}
+        />
+      </Suspense>
+    </AppLayout>
   );
 }
 
