@@ -1,7 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import ProgressBar from './components/ProgressBar';
 import './App.css';
+import LoginModal from './components/LoginModal';
+
+const StatsBar = lazy(() => import('./components/StatsBar'));
+const QuestionsTable = lazy(() => import('./components/QuestionsTable'));
 
 const SIDEBAR_STORAGE_KEY = 'sidebarCollapsed';
 
@@ -9,6 +13,10 @@ const MultiSelect = ({ options, selected, onChange, label, placeholder }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filterText, setFilterText] = useState('');
   const containerRef = useRef(null);
+
+
+
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -95,7 +103,6 @@ const MAJOR_COMPANIES = [
 function App() {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const hasAutoSyncedRef = useRef(false);
   
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -134,10 +141,18 @@ function App() {
   });
   
   // LeetCode Integration
-  const [extensionInstalled, setExtensionInstalled] = useState(false);
-  const [lcUsername, setLcUsername] = useState(() => localStorage.getItem('lcUsername') || '');
+  const [lcUsername, setLcUsername] = useState(() => {
+    return localStorage.getItem('lcUsername') || '';
+  });
   const [lcSession, setLcSession] = useState(() => localStorage.getItem('lcSession') || '');
   const [lcCsrf, setLcCsrf] = useState(() => localStorage.getItem('lcCsrf') || '');
+  const [lcAllCookies, setLcAllCookies] = useState(() => localStorage.getItem('lcAllCookies') || '');
+  
+  // Manual Login State
+  const [showManualLogin, setShowManualLogin] = useState(false);
+  const [manualSessionInput, setManualSessionInput] = useState('');
+  const [manualCsrfInput, setManualCsrfInput] = useState('');
+
   const [solvedMap, setSolvedMap] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('solvedMap')) || {};
@@ -154,8 +169,57 @@ function App() {
     } catch { return {}; }
   });
   const [fetchingLC, setFetchingLC] = useState(false);
+
+  const fetchUserProfile = async (sessionToken, csrfToken, allCookies) => {
+    try {
+      const query = `
+        query globalData {
+          userStatus {
+            username
+            isSignedIn
+            isPremium
+            avatar
+          }
+        }
+      `;
+      
+      const headers = {
+          'Content-Type': 'application/json',
+          'x-lc-session': sessionToken,
+          'x-lc-csrf': csrfToken,
+          'x-csrftoken': csrfToken
+      };
+      if (allCookies) {
+          headers['x-lc-all-cookies'] = allCookies;
+      }
+
+      const response = await fetch('/api/leetcode', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query })
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch user profile');
+      
+      const data = await response.json();
+      console.log('User Data:', data); 
+      
+      if (data.data?.userStatus?.isSignedIn) {
+        const username = data.data.userStatus.username;
+        setLcUsername(username);
+        return username;
+      } else {
+          console.warn('User is not signed in according to LeetCode API');
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+  };
+
+
   const [fetchingPremium, setFetchingPremium] = useState(false);
-  const [showSetupModal, setShowSetupModal] = useState(false);
 
   // Pagination - Load from localStorage
   const [currentPage, setCurrentPage] = useState(() => {
@@ -200,6 +264,10 @@ function App() {
   }, [lcCsrf]);
 
   useEffect(() => {
+    localStorage.setItem('lcAllCookies', lcAllCookies);
+  }, [lcAllCookies]);
+
+  useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarCollapsed.toString());
   }, [sidebarCollapsed]);
 
@@ -242,100 +310,14 @@ function App() {
     setSidebarCollapsed(prev => !prev);
   };
 
-  // Detect extension on load
-  useEffect(() => {
-    const checkExtension = () => {
-      const isInstalled = typeof window.leetcodeAuth !== 'undefined';
-      console.log('Extension detection check:', {
-        isInstalled,
-        hasAPI: !!window.leetcodeAuth,
-        apiKeys: window.leetcodeAuth ? Object.keys(window.leetcodeAuth) : []
-      });
-      setExtensionInstalled(isInstalled);
-      return isInstalled;
-    };
-    
-    // Check immediately
-    const initialCheck = checkExtension();
-    console.log('Initial extension check:', initialCheck);
-    
-    // Also listen for extension ready event
-    const handleReady = () => {
-      console.log('Extension ready event received!');
-      checkExtension();
-    };
-    window.addEventListener('leetcode-auth-ready', handleReady);
-    
-    // Re-check when window regains focus (after user installs extension)
-    const handleFocus = () => {
-      console.log('Window focused, rechecking extension...');
-      setTimeout(() => checkExtension(), 500);
-    };
-    window.addEventListener('focus', handleFocus);
-    
-    // Also check periodically for 10 seconds after load (in case extension loads late)
-    let checkCount = 0;
-    const interval = setInterval(() => {
-      checkCount++;
-      if (checkExtension() || checkCount >= 20) {
-        clearInterval(interval);
-      }
-    }, 500);
-    
-    return () => {
-      window.removeEventListener('leetcode-auth-ready', handleReady);
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, []);
-
-  // Listen for auth success from extension
-  useEffect(() => {
-    const handleAuthSuccess = (event) => {
-      if (event.detail) {
-        setLcSession(event.detail.session);
-        setLcCsrf(event.detail.csrf);
-      }
-    };
-    window.addEventListener('leetcode-auth-success', handleAuthSuccess);
-    return () => window.removeEventListener('leetcode-auth-success', handleAuthSuccess);
-  }, []);
-
   // Sync is now triggered when clicking on problem links (see title link onClick handler)
-
+  
   const toggleSolved = (title) => {
     setSolvedMap(prev => ({ ...prev, [title]: !prev[title] }));
   };
 
-  // Extension-based LeetCode Login
-  const handleLeetCodeLogin = async () => {
-    if (!window.leetcodeAuth) {
-      alert('Extension not detected. Please install it first.');
-      return;
-    }
-
-    setFetchingLC(true);
-    try {
-      const { session, csrf } = await window.leetcodeAuth.login();
-      setLcSession(session);
-      setLcCsrf(csrf);
-      
-      // Auto-fetch submissions if username is set
-      if (lcUsername) {
-        await fetchLeetCodeSubmissions(session, csrf, false, lcUsername);
-      } else {
-        alert('Login successful! Please enter your LeetCode username and click "Sync Solved".');
-      }
-    } catch (error) {
-      console.error('Login failed:', error);
-      alert('Login failed: ' + error.message);
-    } finally {
-      setFetchingLC(false);
-    }
-  };
-
   // Function to check premium status for ALL problems
-  const checkAllPremiumStatus = async (sessionToken = lcSession, csrfToken = lcCsrf) => {
+  const checkAllPremiumStatus = async (sessionToken = lcSession, csrfToken = lcCsrf, allCookies = lcAllCookies) => {
     if (!sessionToken || !csrfToken) {
       console.log('No session token available for premium check');
       return;
@@ -373,14 +355,19 @@ function App() {
 
       // Fetch all problems in batches
       while (hasMore) {
-        const response = await fetch('/api/leetcode', {
-          method: 'POST',
-          headers: {
+        const headers = {
             'Content-Type': 'application/json',
             'x-lc-session': sessionToken,
             'x-lc-csrf': csrfToken,
             'x-csrftoken': csrfToken
-          },
+        };
+        if (allCookies) {
+            headers['x-lc-all-cookies'] = allCookies;
+        }
+
+        const response = await fetch('/api/leetcode', {
+          method: 'POST',
+          headers,
           body: JSON.stringify({
             query,
             variables: { 
@@ -437,54 +424,7 @@ function App() {
     }
   };
 
-  // Function to check premium status for a single problem by title slug
-  const checkSingleProblemPremium = async (titleSlug, sessionToken = lcSession, csrfToken = lcCsrf) => {
-    if (!sessionToken || !csrfToken || !titleSlug) {
-      return null;
-    }
-
-    try {
-      const query = `
-        query questionTitle($titleSlug: String!) {
-          question(titleSlug: $titleSlug) {
-            title
-            isPaidOnly
-          }
-        }
-      `;
-
-      const response = await fetch('/api/leetcode', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-lc-session': sessionToken,
-          'x-lc-csrf': csrfToken,
-          'x-csrftoken': csrfToken
-        },
-        body: JSON.stringify({
-          query,
-          variables: { titleSlug }
-        })
-      });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const data = await response.json();
-      
-      if (data.errors || !data.data?.question) {
-        return null;
-      }
-
-      return data.data.question.isPaidOnly || false;
-    } catch (err) {
-      console.error("Single premium check error:", err);
-      return null;
-    }
-  };
-
-  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf, silent = true, username = lcUsername) => {
+  const fetchLeetCodeSubmissions = async (sessionToken = lcSession, csrfToken = lcCsrf, silent = true, username = lcUsername, allCookies = lcAllCookies) => {
     const usernameToUse = username || lcUsername;
     if (!usernameToUse) {
       if (!silent) alert('Please enter your LeetCode username first.');
@@ -524,14 +464,19 @@ function App() {
 
       // Loop to fetch all pages
       while (hasMore) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-lc-session': sessionToken,
+            'x-lc-csrf': csrfToken,
+            'x-csrftoken': csrfToken
+        };
+        if (allCookies) {
+            headers['x-lc-all-cookies'] = allCookies;
+        }
+
         const response = await fetch('/api/leetcode', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-lc-session': sessionToken,
-                'x-lc-csrf': csrfToken,
-                'x-csrftoken': csrfToken
-            },
+            headers,
             body: JSON.stringify({
                 query,
                 variables: { 
@@ -579,15 +524,15 @@ function App() {
           return;
       }
       
-      const newLcMap = { ...lcSolvedMap };
+      // Overwrite with fresh data from LeetCode
+      const newLcMap = {};
       let newCount = 0;
       allSolved.forEach(q => {
-          if (!newLcMap[q.title]) {
-              newLcMap[q.title] = true;
-              newCount++;
-          }
+          newLcMap[q.title] = true;
+          newCount++;
       });
       setLcSolvedMap(newLcMap);
+      console.log(`Synced ${newCount} solved questions.`);
 
     } catch (err) {
       console.error("LeetCode Fetch Error:", err);
@@ -599,8 +544,48 @@ function App() {
     }
   };
 
-  const handleQuickSetup = () => {
-    setShowSetupModal(true);
+  const loadTokensFromHelper = async () => {
+    setFetchingLC(true);
+    try {
+      const res = await fetch('/api/local-tokens/login', { method: 'POST' });
+      if (!res.ok) {
+        let errDetail = {};
+        try {
+          errDetail = await res.json();
+        } catch {
+          errDetail = {};
+        }
+        throw new Error(errDetail.error || 'Login failed');
+      }
+
+      const data = await res.json();
+
+      if (!data.session || !data.csrf) {
+        throw new Error('Helper did not return valid auth tokens.');
+      }
+      
+      setLcSession(data.session);
+      setLcCsrf(data.csrf);
+      if (data.allCookies) {
+        setLcAllCookies(data.allCookies);
+      }
+      
+      const username = await fetchUserProfile(data.session, data.csrf, data.allCookies);
+      
+      if (username) {
+        await fetchLeetCodeSubmissions(data.session, data.csrf, false, username, data.allCookies);
+        await checkAllPremiumStatus(data.session, data.csrf, data.allCookies);
+      } else if (lcUsername) {
+        await fetchLeetCodeSubmissions(data.session, data.csrf, false, lcUsername, data.allCookies);
+        await checkAllPremiumStatus(data.session, data.csrf, data.allCookies);
+      } else {
+        alert('Authentication successful! Please enter your LeetCode username and click "Sync".');
+      }
+    } catch (error) {
+      alert('Failed to authenticate: ' + error.message);
+    } finally {
+      setFetchingLC(false);
+    }
   };
 
   useEffect(() => {
@@ -777,7 +762,6 @@ function App() {
 
   const totalSolvedLc = Object.keys(lcSolvedMap).length;
   const totalRevised = Object.keys(solvedMap).filter(k => solvedMap[k]).length;
-  const totalQuestionsCount = questions.length || 1;
   const goal = 500;
   const solvedPercent = Math.round((totalSolvedLc / goal) * 100);
   const revisedPercent = Math.round((totalRevised / goal) * 100);
@@ -849,30 +833,6 @@ function App() {
   };
 
   if (loading) return <div className="p-5 text-center">Loading data...</div>;
-
-  const renderCompanyBadges = (companies, limit = null) => {
-      const sorted = [...companies].sort((a, b) => b.frequency - a.frequency);
-      const toShow = limit ? sorted.slice(0, limit) : sorted;
-      const hasMore = limit && sorted.length > limit;
-
-      return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', maxWidth: '300px' }}>
-              {toShow.map(c => (
-                  <span key={c.name} className="badge badge-company">
-                      <span className="fw-semibold">{c.name}</span>
-                      <span className="ms-1" style={{ borderLeft: '1px solid rgba(59, 130, 246, 0.3)', paddingLeft: '0.35rem', opacity: 0.8 }}>
-                        {c.frequency.toFixed(0)}%
-                      </span>
-                  </span>
-              ))}
-              {hasMore && (
-                <span className="badge" style={{ backgroundColor: 'var(--text-muted)', color: 'white', fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>
-                  +{sorted.length - toShow.length}
-                </span>
-              )}
-          </div>
-      );
-  };
 
   return (
     <div className="app-container">
@@ -1028,23 +988,26 @@ function App() {
             
             <div className="row">
               <div className="col-12">
-                {!extensionInstalled ? (
+                {!lcSession ? (
                   <div className="alert alert-info shadow-sm border-0 mb-0" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))', border: '1px solid rgba(99, 102, 241, 0.2) !important', padding: '0.75rem 1rem' }}>
                     <div className="d-flex align-items-center justify-content-between">
                       <div className="flex-grow-1">
-                        <strong style={{ color: 'var(--active-color)', fontSize: '0.95rem' }}>🔐 Setup Required</strong>
-                        <span className="ms-2 small" style={{ color: 'var(--text-muted)' }}>Install extension for LeetCode sync</span>
+                        <strong style={{ color: 'var(--active-color)', fontSize: '0.95rem' }}>🔐 Authentication Required</strong>
+                        <span className="ms-2 small" style={{ color: 'var(--text-muted)' }}>Login to LeetCode to sync progress</span>
                       </div>
                       <div>
-                        <button onClick={handleQuickSetup} className="btn btn-primary btn-sm me-2">
-                          Quick Setup ⚡
+                        <button onClick={loadTokensFromHelper} className="btn btn-primary btn-sm me-2" disabled={fetchingLC}>
+                           {fetchingLC ? 'Logging in...' : 'Login with LeetCode ⚡'}
                         </button>
                         <button 
-                          onClick={() => window.location.reload()} 
-                          className="btn btn-secondary btn-sm"
-                          title="Refresh page to detect extension"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={() => {
+                             setManualSessionInput(lcSession);
+                             setManualCsrfInput(lcCsrf);
+                             setShowManualLogin(true);
+                           }}
                         >
-                          🔄
+                          Manual Input
                         </button>
                       </div>
                     </div>
@@ -1062,17 +1025,6 @@ function App() {
                         onChange={(e) => setLcUsername(e.target.value)}
                       />
                       <button 
-                        className="btn btn-success" 
-                        onClick={handleLeetCodeLogin}
-                        disabled={fetchingLC}
-                      >
-                        {fetchingLC ? (
-                          <><span className="loading-spinner me-2"></span>Logging in...</>
-                        ) : (
-                          '🔑 Login'
-                        )}
-                      </button>
-                      <button 
                         className="btn btn-primary" 
                         onClick={() => fetchLeetCodeSubmissions(lcSession, lcCsrf, false, lcUsername)} 
                         disabled={fetchingLC || !lcUsername || !lcSession}
@@ -1080,423 +1032,95 @@ function App() {
                         {fetchingLC ? (
                           <><span className="loading-spinner me-2"></span>Syncing...</>
                         ) : (
-                          'Sync'
+                          'Sync Solved'
                         )}
+                      </button>
+                      <button
+                        className="btn btn-outline-danger"
+                        type="button"
+                        onClick={() => {
+                            if(window.confirm('Are you sure you want to logout?')) {
+                                setLcSession('');
+                                setLcCsrf('');
+                                setLcUsername('');
+                                setLcAllCookies('');
+                                setLcSolvedMap({});
+                                setPremiumMap({});
+                                localStorage.removeItem('lcSession');
+                                localStorage.removeItem('lcCsrf');
+                                localStorage.removeItem('lcUsername');
+                                localStorage.removeItem('lcAllCookies');
+                                localStorage.removeItem('lcSolvedMap');
+                                localStorage.removeItem('premiumMap');
+                            }
+                        }}
+                      >
+                        Logout
                       </button>
                     </div>
                     <div className="form-text small d-flex justify-content-between" style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                       <span>
-                        {lcSession ? (
-                          <span style={{ color: 'var(--badge-green)' }}>✓ Logged in</span>
-                        ) : (
-                          <span style={{ fontSize: '0.8rem' }}>Click "Login" for authentication</span>
-                        )}
+                          <span style={{ color: 'var(--badge-green)' }}>✓ Logged in as {lcUsername || 'User'}</span>
                       </span>
-                      {lcSession && (
-                        <button 
-                          className="btn btn-link btn-sm p-0 text-decoration-none" 
-                          style={{ color: 'var(--active-color)', fontSize: '0.8rem' }}
-                          onClick={async () => {
-                            if (window.leetcodeAuth) {
-                              await window.leetcodeAuth.logout();
-                            }
-                            setLcSession('');
-                            setLcCsrf('');
-                          }}
-                        >
-                          Logout
-                        </button>
-                      )}
+                      {/* Logout handled by button above */}
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
         </div>
+      </div>
 
-      {showSetupModal && (
-        <div 
-          className="modal d-block" 
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onClick={() => setShowSetupModal(false)}
-        >
-          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
-            <div className="modal-content shadow-lg">
-              <div className="modal-header border-0">
-                <h5 className="modal-title">⚡ Quick Extension Setup</h5>
-                <button type="button" className="btn-close" onClick={() => setShowSetupModal(false)}></button>
-              </div>
-              <div className="modal-body">
-                <div className="alert alert-warning mb-3">
-                  <small className="fw-bold">⚡ Use Unpacked Extension (Easiest):</small>
-                </div>
-                
-                <ol className="mb-3">
-                  <li className="mb-3">
-                    <span className="badge bg-success me-2">1</span>
-                    Open Chrome Extensions:
-                    <div className="input-group input-group-sm mt-2">
-                      <input 
-                        type="text" 
-                        className="form-control font-monospace bg-light" 
-                        value="chrome://extensions" 
-                        readOnly 
-                        onClick={(e) => e.target.select()}
-                      />
-                      <button 
-                        className="btn btn-outline-secondary btn-sm" 
-                        onClick={() => {
-                          navigator.clipboard.writeText('chrome://extensions');
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <small className="text-muted">Paste in address bar</small>
-                  </li>
-                  <li className="mb-3">
-                    <span className="badge bg-success me-2">2</span>
-                    Toggle <strong>"Developer mode"</strong> ON (top right)
-                  </li>
-                  <li className="mb-3">
-                    <span className="badge bg-success me-2">3</span>
-                    Click <strong>"Load unpacked"</strong> button
-                  </li>
-                  <li className="mb-3">
-                    <span className="badge bg-success me-2">4</span>
-                    Navigate to and select this folder:
-                    <div className="input-group input-group-sm mt-2">
-                      <input 
-                        type="text" 
-                        className="form-control font-monospace bg-light small" 
-                        value="/Users/senpai/Desktop/projects/leetcode premium sorter/web-app/extension" 
-                        readOnly 
-                        onClick={(e) => e.target.select()}
-                      />
-                      <button 
-                        className="btn btn-outline-secondary btn-sm" 
-                        onClick={() => {
-                          navigator.clipboard.writeText('/Users/senpai/Desktop/projects/leetcode premium sorter/web-app/extension');
-                        }}
-                      >
-                        Copy Path
-                      </button>
-                    </div>
-                    <small className="text-muted">Cmd+Shift+G in finder to paste path</small>
-                  </li>
-                </ol>
-                
-                <div className="alert alert-success mb-3">
-                  <small>✅ Come back here and <strong>refresh the page</strong> (Cmd+R)!</small>
-                </div>
+      <LoginModal
+        show={showManualLogin}
+        session={manualSessionInput}
+        csrf={manualCsrfInput}
+        onSessionChange={setManualSessionInput}
+        onCsrfChange={setManualCsrfInput}
+        onClose={() => setShowManualLogin(false)}
+        onSubmit={() => {
+          setLcSession(manualSessionInput);
+          setLcCsrf(manualCsrfInput);
+          setShowManualLogin(false);
+          // Auto-sync after manual login
+          if (manualSessionInput && manualCsrfInput && lcUsername) {
+             fetchLeetCodeSubmissions(manualSessionInput, manualCsrfInput, false, lcUsername);
+          }
+        }}
+      />
 
+        <Suspense fallback={null}>
+          <StatsBar
+            totalSolvedLc={totalSolvedLc}
+            solvedPercent={solvedPercent}
+            goal={goal}
+            totalRevised={totalRevised}
+            revisedPercent={revisedPercent}
+            companyStats={companyStats}
+            selectedCompanies={selectedCompanies}
+          />
+        </Suspense>
 
-                <details className="mb-0">
-                  <summary className="text-danger small fw-bold" style={{cursor: 'pointer'}}>
-                    🔧 Extension installed but not detected?
-                  </summary>
-                  <div className="mt-2 small">
-                    <p className="fw-bold mb-2">Checklist:</p>
-                    <div className="form-check mb-2">
-                      <input className="form-check-input" type="checkbox" id="check1" />
-                      <label className="form-check-label" htmlFor="check1">
-                        Extension shows in <code>chrome://extensions</code> with toggle ON
-                      </label>
-                    </div>
-                    <div className="form-check mb-2">
-                      <input className="form-check-input" type="checkbox" id="check2" />
-                      <label className="form-check-label" htmlFor="check2">
-                        "Developer mode" is enabled
-                      </label>
-                    </div>
-                    <div className="form-check mb-2">
-                      <input className="form-check-input" type="checkbox" id="check3" />
-                      <label className="form-check-label" htmlFor="check3">
-                        I refreshed this page AFTER installing (Cmd+R or F5)
-                      </label>
-                    </div>
-                    <div className="form-check mb-3">
-                      <input className="form-check-input" type="checkbox" id="check4" />
-                      <label className="form-check-label" htmlFor="check4">
-                        No errors shown in extension (check service worker logs)
-                      </label>
-                    </div>
-                    
-                    <p className="fw-bold mb-2">Debug in Console (F12):</p>
-                    <div className="bg-dark text-light p-2 rounded font-monospace small mb-2">
-                      window.leetcodeAuth
-                    </div>
-                    <p className="mb-2">
-                      Should return an object. If <code>undefined</code>, content script isn't running.
-                    </p>
-
-                    <p className="fw-bold mb-2">Common Issues:</p>
-                    <ul className="mb-0">
-                      <li>Selected wrong folder (need the <code>extension</code> folder specifically)</li>
-                      <li>Extension disabled or has errors</li>
-                      <li>Didn't hard refresh (try Ctrl+Shift+R or Cmd+Shift+R)</li>
-                      <li>Using Firefox (extension is Chrome-only)</li>
-                    </ul>
-                  </div>
-                </details>
-              </div>
-              <div className="modal-footer border-0 d-flex justify-content-between">
-                <button 
-                  className="btn btn-info btn-sm" 
-                  onClick={() => {
-                    const hasExt = typeof window.leetcodeAuth !== 'undefined';
-                    alert(hasExt 
-                      ? '✅ Extension IS detected!\nAPI: ' + Object.keys(window.leetcodeAuth).join(', ')
-                      : '❌ Extension NOT detected\nwindow.leetcodeAuth is undefined\n\nMake sure:\n1. Extension is installed\n2. Extension is enabled\n3. You refreshed the page\n4. No console errors'
-                    );
-                  }}
-                >
-                  🧪 Test Detection
-                </button>
-                <div>
-                  <button className="btn btn-secondary" onClick={() => setShowSetupModal(false)}>
-                    Close
-                  </button>
-                  <button className="btn btn-primary ms-2" onClick={() => window.location.reload()}>
-                    I've Installed It - Refresh
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-        <div className="stats-bar">
-          <div className="stat-card">
-            <div className="stat-label">LC Solved</div>
-            <div className="stat-value">{totalSolvedLc}</div>
-            <span className="text-muted small">{solvedPercent}% of {goal}</span>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Revised</div>
-            <div className="stat-value">{totalRevised}</div>
-            <span className="text-muted small">{revisedPercent}% of {goal}</span>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Company Progress</div>
-            <div className="stat-value">{companyStats.solved} / {companyStats.remaining}</div>
-            <span className="text-muted small">{selectedCompanies.length > 0 ? `${companyStats.solved} solved, ${companyStats.remaining} remaining` : 'Select a company'}</span>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '0' }}>
-          <div className="card-header" style={{ padding: '0.5rem 0.85rem' }}>
-
-          </div>
-
-          <div className="table-container">
-            <div className="table-responsive">
-              <table className="table mb-0">
-                <thead>
-                  <tr>
-                    <th className={`sortable sort-${getSortState('title')}`} onClick={() => handleSort('title')}>
-                      Title <span className="sort-icon">{getSortIcon('title')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('difficulty')}`} style={{ width: '100px' }} onClick={() => handleSort('difficulty')}>
-                      Difficulty <span className="sort-icon">{getSortIcon('difficulty')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('acceptanceRate')}`} style={{ width: '120px' }} onClick={() => handleSort('acceptanceRate')}>
-                      Acceptance <span className="sort-icon">{getSortIcon('acceptanceRate')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('majorCompanies')}`} onClick={() => handleSort('majorCompanies')}>
-                      Major Companies <span className="sort-icon">{getSortIcon('majorCompanies')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('otherCompanies')}`} onClick={() => handleSort('otherCompanies')}>
-                      Other Companies <span className="sort-icon">{getSortIcon('otherCompanies')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('frequency')}`} style={{ width: '180px' }} onClick={() => handleSort('frequency')}>
-                      Frequency <span className="sort-icon">{getSortIcon('frequency')}</span>
-                    </th>
-                    <th className={`sortable sort-${getSortState('topics')}`} onClick={() => handleSort('topics')}>
-                      Topics <span className="sort-icon">{getSortIcon('topics')}</span>
-                    </th>
-                    <th className={`text-center sortable sort-${getSortState('lcSolved')}`} style={{ width: '80px' }} onClick={() => handleSort('lcSolved')}>
-                      <div>LC <span className="sort-icon">{getSortIcon('lcSolved')}</span></div>
-                    </th>
-                    <th className={`text-center sortable sort-${getSortState('solved')}`} style={{ width: '80px' }} onClick={() => handleSort('solved')}>
-                      <div>Revised <span className="sort-icon">{getSortIcon('solved')}</span></div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentQuestions.map((q) => (
-                    <tr 
-                      key={q.title} 
-                      className={solvedMap[q.title] ? 'solved-row' : ''}
-                      onClick={(e) => {
-                        // Don't toggle if clicking on the title link or checkbox
-                        if (e.target.tagName === 'A' || e.target.type === 'checkbox') {
-                          return;
-                        }
-                        toggleSolved(q.title);
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <td className="title-cell">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <a 
-                            href={q.link} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-decoration-none fw-semibold title-link"
-                            style={{ color: 'var(--text-dark)' }}
-                            onClick={(e) => {
-                            e.stopPropagation();
-                            // Trigger sync when clicking on problem link
-                            if (lcUsername && lcSession) {
-                              // Fire sync in background, don't wait for it
-                              fetchLeetCodeSubmissions(lcSession, lcCsrf, true, lcUsername).catch(err => {
-                                console.error('Background sync failed:', err);
-                              });
-                            }
-                          }}
-                          >
-                            {q.title}
-                          </a>
-                          {premiumMap[q.title] === true && (
-                            <span 
-                              className="badge" 
-                              style={{ 
-                                backgroundColor: '#3E2723', 
-                                color: '#FFA500', 
-                                fontSize: '0.75rem',
-                                fontWeight: '500',
-                                padding: '0.3rem 0.65rem',
-                                borderRadius: '14px',
-                                border: 'none',
-                                fontFamily: 'system-ui, -apple-system, sans-serif',
-                                letterSpacing: '0.01em'
-                              }}
-                              title="LeetCode Premium"
-                            >
-                              Premium
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge ${
-                          q.difficulty.toUpperCase() === 'EASY' ? 'badge-easy' : 
-                          q.difficulty.toUpperCase() === 'MEDIUM' ? 'badge-medium' : 'badge-hard'
-                        }`}>
-                          {q.difficulty}
-                        </span>
-                      </td>
-                      <td>{(q.acceptanceRate * 100).toFixed(1)}%</td>
-                      <td>
-                        {(() => {
-                          const relevantCompanies = selectedCompanies.length > 0
-                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                            : q.companies;
-                          
-                          const major = relevantCompanies.filter(c => MAJOR_COMPANIES.includes(c.name));
-                          return renderCompanyBadges(major);
-                        })()}
-                      </td>
-                      <td>
-                        {(() => {
-                          const relevantCompanies = selectedCompanies.length > 0
-                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                            : q.companies;
-                          
-                          const others = relevantCompanies.filter(c => !MAJOR_COMPANIES.includes(c.name));
-                          // If filter applied, show all. Else show top 3.
-                          const limit = selectedCompanies.length > 0 ? null : 3;
-                          return renderCompanyBadges(others, limit);
-                        })()}
-                      </td>
-                      <td>
-                        {(() => {
-                          const relevantCompanies = selectedCompanies.length > 0 
-                            ? q.companies.filter(c => selectedCompanies.includes(c.name))
-                            : q.companies;
-                          const maxFreq = Math.max(0, ...relevantCompanies.map(c => c.frequency));
-                          return <ProgressBar value={maxFreq} max={100} height="9px" />;
-                        })()}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          {q.topics.slice(0, 3).map(topic => (
-                            <span key={topic} className="badge badge-topic">
-                              {topic}
-                            </span>
-                          ))}
-                          {q.topics.length > 3 && (
-                            <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>
-                              +{q.topics.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="text-center">
-                        {lcSolvedMap[q.title] ? (
-                          <span className="check-icon">✓</span>
-                        ) : (
-                          <span style={{ color: 'var(--border-color)' }}></span>
-                        )}
-                      </td>
-                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <input 
-                          type="checkbox" 
-                          className="form-check-input revised-checkbox" 
-                          style={{ 
-                            cursor: 'pointer', 
-                            width: '1.5rem', 
-                            height: '1.5rem',
-                            border: '2px solid var(--border-color)',
-                            borderRadius: '4px',
-                            accentColor: 'var(--badge-green)'
-                          }}
-                          checked={!!solvedMap[q.title]} 
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleSolved(q.title);
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {currentQuestions.length === 0 && (
-                    <tr>
-                      <td colSpan="9" className="text-center" style={{ padding: '3rem', color: 'var(--text-muted)' }}>
-                        No questions found matching your criteria.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="d-flex justify-content-center" style={{ padding: '1.5rem 0' }}>
-              <div className="pagination">
-                <button 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </button>
-                <button disabled className="active">
-                  Page {currentPage} of {totalPages}
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <Suspense fallback={null}>
+          <QuestionsTable
+            questions={currentQuestions}
+            solvedMap={solvedMap}
+            lcSolvedMap={lcSolvedMap}
+            selectedCompanies={selectedCompanies}
+            premiumMap={premiumMap}
+            toggleSolved={toggleSolved}
+            handleSort={handleSort}
+            getSortState={getSortState}
+            getSortIcon={getSortIcon}
+            totalPages={totalPages}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            fetchLeetCodeSubmissions={fetchLeetCodeSubmissions}
+            lcUsername={lcUsername}
+            lcSession={lcSession}
+            lcCsrf={lcCsrf}
+          />
+        </Suspense>
       </main>
     </div>
   );
