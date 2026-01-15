@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import PropTypes from 'prop-types';
-import './LoginModal.module.css';
+import { RiCloseLine } from 'react-icons/ri';
+import styles from './LoginModal.module.css';
 
 /**
  * LoginModal renders manual token input for LeetCode authentication.
@@ -17,65 +18,62 @@ function LoginModal({
   if (!show) return null;
 
   return (
-    <div
-      className="modal d-block"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
-      onClick={onClose}
-    >
-      <div
-        className="modal-dialog modal-dialog-centered"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-content shadow-lg">
-          <div className="modal-header border-0">
-            <h5 className="modal-title">Manual Login (No Extension)</h5>
-            <button type="button" className="btn-close" onClick={onClose}></button>
+    <div className={styles.modalBackdrop} onClick={onClose}>
+      <div className={styles.modalDialog} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalContent}>
+          <div className={styles.modalHeader}>
+            <h5 className={styles.modalTitle}>Manual Login</h5>
+            <button className={styles.closeButton} onClick={onClose}>
+              <RiCloseLine />
+            </button>
           </div>
-          <div className="modal-body">
-            <p className="small text-muted mb-3">
+          
+          <div className={styles.modalBody}>
+            <div className={styles.helperText}>
               If you can&apos;t use the extension, you can manually paste your LeetCode
               cookies here.
-              <br />
+              <br /><br />
               <strong>How to find them:</strong>
-              <ol className="mb-0 mt-1 ps-3">
+              <ol style={{ marginTop: '0.5rem', paddingLeft: '1.2rem', marginBottom: 0 }}>
                 <li>Go to LeetCode.com and log in</li>
                 <li>Open Developer Tools (F12) → Application/Storage tab</li>
                 <li>Go to Cookies → https://leetcode.com</li>
                 <li>
-                  Copy the values for <code>LEETCODE_SESSION</code> and{' '}
-                  <code>csrftoken</code>
+                  Copy the values for <code className={styles.codeBlock}>LEETCODE_SESSION</code> and{' '}
+                  <code className={styles.codeBlock}>csrftoken</code>
                 </li>
               </ol>
-            </p>
+            </div>
 
-            <div className="mb-3">
-              <label className="form-label">LEETCODE_SESSION</label>
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>LEETCODE_SESSION</label>
               <input
                 type="text"
-                className="form-control font-monospace small"
+                className={styles.input}
                 value={session}
                 onChange={(e) => onSessionChange(e.target.value)}
                 placeholder="Paste session cookie here..."
               />
             </div>
 
-            <div className="mb-3">
-              <label className="form-label">csrftoken</label>
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>csrftoken</label>
               <input
                 type="text"
-                className="form-control font-monospace small"
+                className={styles.input}
                 value={csrf}
                 onChange={(e) => onCsrfChange(e.target.value)}
                 placeholder="Paste csrf token here..."
               />
             </div>
           </div>
-          <div className="modal-footer border-0">
-            <button className="btn btn-secondary" onClick={onClose}>
+
+          <div className={styles.modalFooter}>
+            <button className={styles.btnCancel} onClick={onClose}>
               Cancel
             </button>
             <button
-              className="btn btn-primary"
+              className={styles.btnSubmit}
               onClick={onSubmit}
               disabled={!session || !csrf}
             >
