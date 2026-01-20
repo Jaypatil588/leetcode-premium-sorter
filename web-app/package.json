@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "bootstrap": "^5.3.8",
-    "leetcode-query": "^2.0.1",
+    "prop-types": "^15.8.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0"
@@ -25,6 +25,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "puppeteer": "^23.7.0",
     "vite": "^7.2.4"
   }
 }

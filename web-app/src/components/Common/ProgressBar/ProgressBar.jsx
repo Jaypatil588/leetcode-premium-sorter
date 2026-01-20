@@ -1,21 +1,26 @@
-import './ProgressBar.css';
+import { memo } from 'react';
+import PropTypes from 'prop-types';
+import './ProgressBar.module.css';
 
+/**
+ * ProgressBar renders a simple percentage bar with optional label.
+ */
 function ProgressBar({ value, max = 100, showLabel = true, height = '8px' }) {
-  // Calculate percentage
   const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-  
-  // Determine color based on percentage
+
   const getColor = () => {
-    // Use a calmer blue-green scale so this column doesn't dominate
-    if (percentage >= 67) return '#60a5fa'; // brighter blue
-    if (percentage >= 34) return '#38bdf8'; // mid blue
-    return '#22c55e'; // green for low/medium
+    if (percentage >= 67) return '#60a5fa';
+    if (percentage >= 34) return '#38bdf8';
+    return '#22c55e';
   };
 
   const color = getColor();
 
   return (
-    <div className="progress-bar-container" title={`${value}/${max} (${percentage.toFixed(1)}%)`}>
+    <div
+      className="progress-bar-container"
+      title={`${value}/${max} (${percentage.toFixed(1)}%)`}
+    >
       <div className="progress-bar-track" style={{ height }}>
         <div
           className="progress-bar-fill"
@@ -35,5 +40,12 @@ function ProgressBar({ value, max = 100, showLabel = true, height = '8px' }) {
   );
 }
 
-export default ProgressBar;
+ProgressBar.propTypes = {
+  value: PropTypes.number.isRequired,
+  max: PropTypes.number,
+  showLabel: PropTypes.bool,
+  height: PropTypes.string
+};
+
+export default memo(ProgressBar);
 
